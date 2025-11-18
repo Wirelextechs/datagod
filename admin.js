@@ -1,4 +1,4 @@
-// admin.js
+// admin.js (COMPLETE UPDATED CODE)
 
 // --- MOCK DATABASE DATA (Expanded to include Orders and Token) ---
 
@@ -40,8 +40,8 @@ async function updateOrderStatus(orderId, newStatus) {
     if (orderIndex !== -1) {
         MOCK_ORDERS[orderIndex].status = newStatus;
         MOCK_ORDERS[orderIndex].updatedAt = new Date();
-        // Simulate re-rendering after a DB update (Live Synchronization)
-        renderDashboard(); 
+        // Live Synchronization via re-render
+        // Note: We don't call renderDashboard here, as bulk functions will call filterOrders/renderOrderTable
         return { success: true };
     }
     return { success: false };
@@ -52,6 +52,119 @@ async function updateOrderStatus(orderId, newStatus) {
  */
 async function fetchAdminToken() {
     return MOCK_SETTINGS.adminToken;
+}
+
+// --- BULK PROCESSING TOOLS (NEW) ---
+
+/**
+ * Gets the IDs of all checked orders.
+ */
+function getSelectedOrderIds() {
+    const checkedCheckboxes = document.querySelectorAll('#orders-table-body .order-checkbox:checked');
+    return Array.from(checkedCheckboxes).map(cb => cb.getAttribute('data-order-id'));
+}
+
+/**
+ * Gets the full objects of all checked orders (used for CSV export).
+ */
+function getSelectedOrderObjects() {
+    const selectedIds = getSelectedOrderIds();
+    return MOCK_ORDERS.filter(order => selectedIds.includes(order.id));
+}
+
+/**
+ * Selects or deselects all visible orders based on the master checkbox.
+ */
+function toggleSelectAll(masterCheckbox) {
+    const isChecked = masterCheckbox.checked;
+    const visibleCheckboxes = document.querySelectorAll('#orders-table-body .order-checkbox');
+    visibleCheckboxes.forEach(cb => {
+        cb.checked = isChecked;
+    });
+}
+
+/**
+ * Handles filtering the order table by status.
+ */
+async function filterOrders() {
+    const statusFilter = document.getElementById('filter-status').value;
+    const allOrders = await fetchAllOrders();
+    
+    let filteredOrders;
+    if (statusFilter === 'ALL') {
+        filteredOrders = allOrders;
+    } else {
+        filteredOrders = allOrders.filter(order => order.status === statusFilter);
+    }
+
+    renderOrderTable(filteredOrders);
+}
+
+/**
+ * Executes a bulk status change on selected orders.
+ */
+async function handleBulkStatusChange() {
+    const selectedOrders = getSelectedOrderIds();
+    const bulkStatusSelect = document.getElementById('bulk-status-select');
+    const newStatus = bulkStatusSelect.value;
+
+    if (selectedOrders.length === 0) {
+        alert('Please select at least one order to process.');
+        return;
+    }
+    if (!newStatus) {
+        alert('Please select a new status.');
+        return;
+    }
+
+    if (!confirm(`Are you sure you want to change the status of ${selectedOrders.length} orders to ${newStatus}?`)) {
+        return;
+    }
+
+    // Simulate batch update operation
+    for (const id of selectedOrders) {
+        await updateOrderStatus(id, newStatus); 
+    }
+
+    alert(`${selectedOrders.length} orders successfully updated to ${newStatus}.`);
+    // Re-render the table after the batch update is complete
+    filterOrders();
+}
+
+
+/**
+ * Generates and downloads the CSV file for bulk loading.
+ */
+function exportOrdersToCSV() {
+    const selectedOrders = getSelectedOrderObjects();
+    
+    if (selectedOrders.length === 0) {
+        alert('Please select orders for CSV export.');
+        return;
+    }
+
+    // 1. Define the CSV header: Only Customer Phone and Data Value (GB) are needed for MTN bulk systems
+    let csvContent = "CustomerPhone,DataValueGB\r\n";
+
+    // 2. Add the data rows
+    selectedOrders.forEach(order => {
+        csvContent += `${order.customerPhone},${order.packageGB}\r\n`;
+    });
+
+    // 3. Create a Blob and download the file
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement("a");
+    const url = URL.createObjectURL(blob);
+    const date = new Date().toISOString().split('T')[0];
+
+    link.setAttribute("href", url);
+    link.setAttribute("download", `DataGod_Bulk_Load_${date}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+
+    alert(`Exported ${selectedOrders.length} orders to CSV for bulk loading.`);
 }
 
 // --- Admin Dashboard Logic ---
@@ -66,7 +179,6 @@ async function handleLogin(event) {
     const storedToken = await fetchAdminToken();
 
     if (tokenAttempt === storedToken) {
-        // Successful Session Management
         sessionStorage.setItem('admin_session_valid', 'true');
         window.location.hash = '#dashboard';
         renderDashboard();
@@ -77,11 +189,26 @@ async function handleLogin(event) {
 }
 
 /**
- * Renders the orders into the management table.
+ * Renders the orders into the management table. (Updated to populate filter/bulk dropdowns)
  */
 async function renderOrderTable(orders) {
     const tableBody = document.getElementById('orders-table-body');
+    const statusKeys = Object.keys(OrderStatus);
+    const filterStatusSelect = document.getElementById('filter-status');
+    const bulkStatusSelect = document.getElementById('bulk-status-select');
+
     if (!tableBody) return;
+    
+    // 1. Initialize Dropdowns (if not already populated)
+    if (filterStatusSelect.options.length === 1) { 
+        statusKeys.forEach(status => {
+            const option = document.createElement('option');
+            option.value = status;
+            option.textContent = status;
+            filterStatusSelect.appendChild(option);
+            bulkStatusSelect.appendChild(option.cloneNode(true)); // Clone for bulk selector
+        });
+    }
 
     let html = '';
     orders.forEach(order => {
@@ -106,6 +233,12 @@ async function renderOrderTable(orders) {
         `;
     });
     tableBody.innerHTML = html;
+    
+    // 2. Reset master checkbox
+    const masterCheckbox = document.getElementById('select-all-checkbox');
+    if(masterCheckbox) {
+        masterCheckbox.checked = false;
+    }
 }
 
 /**
@@ -130,10 +263,12 @@ async function handleStatusChange(selectElement) {
     
     if (confirm(`Are you sure you want to change order ${orderId} status to ${newStatus}?`)) {
         await updateOrderStatus(orderId, newStatus);
+        // Re-render the filtered view
+        filterOrders();
         alert(`Status for ${orderId} updated to ${newStatus}.`);
     } else {
-        // Revert the dropdown if canceled (by re-rendering the dashboard)
-        renderDashboard();
+        // Revert the dropdown if canceled
+        renderDashboard(); 
     }
 }
 
@@ -149,8 +284,9 @@ async function renderDashboard() {
         if (isAdminValid) {
             loginView.style.display = 'none';
             dashboardView.style.display = 'block';
-            const orders = await fetchAllOrders();
-            renderOrderTable(orders);
+            
+            // Render orders, applying the filter if one is set
+            filterOrders(); 
         } else {
             loginView.style.display = 'block';
             dashboardView.style.display = 'none';
@@ -177,5 +313,12 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // Check session on load/hash change for secure access routing
     window.addEventListener('hashchange', renderDashboard);
+    
+    // Attach filter handler
+    const filterSelect = document.getElementById('filter-status');
+    if (filterSelect) {
+        filterSelect.addEventListener('change', filterOrders);
+    }
+    
     renderDashboard();
 });
