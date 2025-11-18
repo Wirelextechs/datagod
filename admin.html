@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DataGod | Admin Dashboard</title>
+    <style>
+        /* Basic CSS for Admin Dashboard */
+        body { font-family: sans-serif; margin: 0; padding: 0; background-color: #f4f4f9; }
+        .container { max-width: 1400px; margin: 0 auto; padding: 20px; }
+        header { background-color: #1a1a1a; color: white; padding: 15px; display: flex; justify-content: space-between; align-items: center; }
+        h1 { margin: 0; font-size: 1.5em; }
+
+        /* Login View Styling */
+        #login-view {
+            display: flex; justify-content: center; align-items: center; height: 80vh;
+        }
+        .login-box {
+            background-color: white; padding: 40px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            text-align: center;
+        }
+        .login-box input { padding: 10px; margin: 10px 0; width: 250px; border: 1px solid #ccc; border-radius: 4px; }
+        .login-box button { background-color: #ffcc00; color: #1a1a1a; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; }
+        
+        /* Dashboard Styling */
+        #dashboard-view { display: none; margin-top: 20px; }
+        .controls { margin-bottom: 20px; padding: 15px; background-color: #e9ecef; border-radius: 5px; }
+        
+        /* Table Styling */
+        table { width: 100%; border-collapse: collapse; background-color: white; }
+        th, td { border: 1px solid #ddd; padding: 12px; text-align: left; }
+        th { background-color: #f8f9fa; }
+        .status-badge { 
+            color: white; padding: 4px 8px; border-radius: 12px; font-size: 0.8em; font-weight: bold; 
+            display: inline-block;
+        }
+        .status-dropdown { padding: 5px; border-radius: 4px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        
+        <div id="login-view">
+            <div class="login-box">
+                <h2>DataGod Admin Login</h2>
+                <form id="login-form">
+                    <input type="password" id="admin-token-input" placeholder="Enter Secret Admin Token" required>
+                    <button type="submit">Access Dashboard</button>
+                </form>
+            </div>
+        </div>
+
+        <div id="dashboard-view">
+            <header>
+                <h1>Admin Dashboard - Real-Time Orders</h1>
+                <button onclick="handleLogout()">Logout</button>
+            </header>
+
+            <div class="controls">
+                <h3>Order Filtering & Bulk Tools</h3>
+                <label for="filter-status">Filter by Status:</label>
+                <select id="filter-status">
+                    <option value="ALL">ALL Orders</option>
+                </select>
+                <button style="margin-left: 20px;" onclick="alert('Bulk selection and processing logic coming next!')">Bulk Action</button>
+                <button onclick="alert('CSV Export logic coming next!')">Download CSV</button>
+            </div>
+
+            <table>
+                <thead>
+                    <tr>
+                        <th>Select</th>
+                        <th>Short ID</th>
+                        <th>Customer Phone</th>
+                        <th>Package</th>
+                        <th>Price (GHS)</th>
+                        <th>Current Status</th>
+                        <th>Update Status</th>
+                    </tr>
+                </thead>
+                <tbody id="orders-table-body">
+                    </tbody>
+            </table>
+
+            <h2 style="margin-top: 40px;">Configuration</h2>
+            <p>Package Editor and Settings Editor functionality will be built here soon.</p>
+        </div>
+    </div>
+    
+    <script src="admin.js"></script>
+</body>
+</html>
