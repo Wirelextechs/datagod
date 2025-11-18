@@ -3,109 +3,313 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>DataGod | MTN Data Vending Platform</title>
+    <title>DataGod Vending Platform</title>
     <style>
-        /* Basic CSS for presentation */
-        body { font-family: sans-serif; margin: 0; padding: 0; background-color: #f4f4f9; }
-        .container { max-width: 1200px; margin: 0 auto; padding: 20px; }
-        header { background-color: #ffcc00; color: #1a1a1a; padding: 15px; text-align: center; }
-        h1 { margin: 0; }
+        /* Global Reset and Base Styles */
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f4f4f9;
+            color: #333;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 20px auto;
+            padding: 20px;
+            background-color: white;
+            border-radius: 10px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+        }
+
+        header {
+            text-align: center;
+            padding: 20px 0;
+            border-bottom: 3px solid #ffcc00;
+        }
+
+        header h1 {
+            color: #1a1a1a;
+            margin-bottom: 5px;
+        }
+
+        .contact-bar {
+            background-color: #1a1a1a;
+            color: white;
+            padding: 10px;
+            text-align: center;
+            border-radius: 5px;
+            margin-bottom: 20px;
+        }
+
+        .contact-bar a {
+            color: #ffcc00;
+            text-decoration: none;
+            font-weight: bold;
+            transition: color 0.3s;
+        }
+
+        .contact-bar a:hover {
+            color: #fff;
+        }
+
+        /* Status Checker Section */
+        #status-checker {
+            background-color: #e9ecef;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 30px;
+            text-align: center;
+        }
+
+        #status-checker h2 {
+            margin-top: 0;
+            color: #007bff;
+        }
+
+        #status-checker input {
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            width: 150px;
+            margin-right: 10px;
+        }
+
+        #status-checker button {
+            padding: 10px 20px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+
+        #status-checker button:hover {
+            background-color: #0056b3;
+        }
+
+        #status-report {
+            margin-top: 15px;
+            text-align: left;
+            padding: 10px;
+            background-color: #fff;
+            border-radius: 5px;
+        }
+
+
+        /* Package Catalog */
         #package-catalog {
             display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
             gap: 20px;
             margin-top: 30px;
         }
+
         .package-card {
             background-color: #ffffff;
             border: 1px solid #ddd;
             border-radius: 8px;
             padding: 20px;
             text-align: center;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-        }
-        .data-value { font-size: 1.5em; font-weight: bold; color: #007bff; }
-        .price { font-size: 1.2em; color: #333; margin-bottom: 15px; }
-        .buy-btn {
-            background-color: #28a745;
-            color: white;
-            border: none;
-            padding: 10px 20px;
-            border-radius: 5px;
-            cursor: pointer;
-            font-size: 1em;
-        }
-        .buy-btn:hover { background-color: #218838; }
-        
-        /* Modal Styling */
-        .modal {
-            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background-color: rgba(0, 0, 0, 0.7); display: none; 
-            justify-content: center; align-items: center; z-index: 1000;
-        }
-        .modal-content {
-            background-color: white; padding: 30px; border-radius: 10px;
-            width: 90%; max-width: 400px; position: relative;
-        }
-        .close-button { position: absolute; top: 10px; right: 20px; font-size: 24px; cursor: pointer; }
-        .success-screen {
-            text-align: center; padding: 40px; background-color: white; border-radius: 10px;
-        }
-        .short-id-box { 
-            background-color: #e9ecef; padding: 15px; margin: 15px 0; border-radius: 5px; 
-            font-size: 1.8em; color: #d9534f;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
+            transition: transform 0.2s;
         }
 
-        /* Contact Link */
-        #contact-link {
-            display: block; width: 100%; max-width: 300px; margin: 30px auto 0;
-            padding: 15px; text-align: center; background-color: #25d366; 
-            color: white; text-decoration: none; border-radius: 5px; font-weight: bold;
+        .package-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 6px 15px rgba(0, 0, 0, 0.1);
+        }
+
+        .package-card h3 {
+            color: #1a1a1a;
+            font-size: 1.5em;
+            margin-top: 0;
+        }
+
+        .package-card .data-value {
+            font-size: 2.5em;
+            color: #28a745;
+            font-weight: bold;
+            margin: 10px 0;
+        }
+
+        .package-card .price {
+            font-size: 1.2em;
+            color: #555;
+            margin-bottom: 15px;
+        }
+
+        .buy-btn {
+            background-color: #ffcc00;
+            color: #1a1a1a;
+            padding: 10px 25px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: background-color 0.3s;
+        }
+
+        .buy-btn:hover {
+            background-color: #e6b800;
+        }
+
+
+        /* Modal Styles */
+        .modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.7);
+            display: none; /* Hidden by default */
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+
+        .modal-content {
+            background-color: white;
+            padding: 30px;
+            border-radius: 10px;
+            width: 90%;
+            max-width: 400px;
+            position: relative;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+        }
+
+        .close-button {
+            position: absolute;
+            top: 10px;
+            right: 20px;
+            font-size: 24px;
+            cursor: pointer;
+            color: #333;
+        }
+
+        #order-form label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+
+        #order-form input {
+            width: 95%;
+            padding: 10px;
+            margin-bottom: 20px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            font-size: 1em;
+        }
+
+        #order-form button {
+            background-color: #28a745;
+            color: white;
+            padding: 12px;
+            border: none;
+            border-radius: 5px;
+            width: 100%;
+            cursor: pointer;
+            font-size: 1.1em;
+        }
+
+        .short-id-box {
+            background-color: #fff3cd;
+            color: #856404;
+            border: 1px solid #ffeeba;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 5px;
+            text-align: center;
+        }
+
+        .short-id-box strong {
+            font-size: 2em;
+            display: block;
+        }
+
+        .instruction {
+            color: #dc3545;
+            font-weight: bold;
+            text-align: center;
+        }
+
+        .success-screen {
+            text-align: center;
+            padding: 50px;
+            background-color: #e6ffed;
+            border: 1px solid #a3e8b8;
+            border-radius: 10px;
+            margin-top: 30px;
+        }
+
+        .success-screen h2 {
+            color: #28a745;
+        }
+
+        .success-screen button {
+            background-color: #007bff;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            margin-top: 20px;
+            cursor: pointer;
         }
     </style>
 </head>
 <body>
-    <div class="container">
+    <div id="main-content" class="container">
+        
         <header>
-            <h1>DataGod Vending Store</h1>
+            <h1>DataGod Vending Platform</h1>
+            <p>Instant Data Bundles for MTN Ghana</p>
         </header>
 
-        <a id="contact-link" href="#" target="_blank">WhatsApp Support/Sales</a>
-
-        <section style="margin-top: 20px; padding: 10px; border: 1px dashed #ccc;">
-            <h3>Order Status Checker</h3>
-            <input type="text" id="short-id-lookup" placeholder="Enter 4-digit Short ID">
-            <button id="lookup-btn">Lookup Status</button> 
-            <p id="status-report"></p>
-        </section>
-
-
-        <h2>Data Package Catalog</h2>
-        <div id="main-content">
-            <section id="package-catalog">
-                <p>Loading packages...</p>
-            </section>
+        <div class="contact-bar">
+            Need assistance or have a special request? Contact us via 
+            <a id="contact-link" href="#" target="_blank">WhatsApp Support</a>
+        </div>
+        
+        <div id="status-checker">
+            <h2>Check Your Order Status</h2>
+            <p>Enter the 4-digit Short ID provided after your purchase.</p>
+            <input type="text" id="short-id-lookup" placeholder="e.g., 1234" maxlength="4">
+            <button id="lookup-btn">Check Status</button>
+            <div id="status-report"></div>
         </div>
 
-
-        <div id="order-modal" class="modal">
-            <div class="modal-content">
-                <span class="close-button" onclick="closeOrderModal()">&times;</span>
-                <h3>Confirm Purchase</h3>
-                <p>You are about to purchase:</p>
-                <h4 id="modal-package-name"></h4>
-                <p>Price: <strong id="modal-package-price"></strong></p>
-                
-                <form id="order-form">
-                    <label for="momo-number">Enter MTN Mobile Money Number:</label>
-                    <input type="tel" id="momo-number" placeholder="e.g., 024xxxxxxx" required pattern="[0-9]{10}" title="Must be a 10-digit number">
-                    
-                    <button type="submit" style="margin-top: 15px;">Confirm & Pay</button>
-                </form>
+        <h2>Available Data Packages</h2>
+        <div id="package-catalog">
             </div>
-        </div>
 
     </div>
+
+    <div id="order-modal" class="modal">
+        <div class="modal-content">
+            <span class="close-button" onclick="closeOrderModal()">&times;</span>
+            <h2>Confirm Purchase</h2>
+            
+            <p>You are purchasing:</p>
+            <h3 id="modal-package-name" style="color: #007bff;"></h3>
+            <h4 id="modal-package-price" style="color: #28a745;"></h4>
+
+            <form id="order-form">
+                <label for="momo-number">Enter MTN Mobile Money Number:</label>
+                <input type="text" id="momo-number" placeholder="0XXXXXXXXX" required pattern="0[0-9]{9}" title="Enter a valid 10-digit number starting with 0">
+                <p style="font-size: 0.9em; color: gray;">
+                    By clicking 'Confirm Order', you authorize payment from this number. 
+                    Ensure the number has sufficient balance.
+                </p>
+                <button type="submit">Confirm Order & Pay</button>
+            </form>
+        </div>
+    </div>
+    
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     
     <script src="storefront.js"></script>
 </body>
