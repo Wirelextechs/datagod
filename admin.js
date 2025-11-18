@@ -1,6 +1,6 @@
 // admin.js (COMPLETE UPDATED CODE)
 
-// --- MOCK DATABASE DATA (Expanded to include Orders and Token) ---
+// --- MOCK DATABASE DATA (Expanded to include Packages) ---
 
 const MOCK_SETTINGS = {
   whatsAppLink: 'https://wa.me/233241234567',
@@ -22,6 +22,15 @@ let MOCK_ORDERS = [
     { id: 'ord4', shortId: '9876', customerPhone: '0543332222', packageGB: 15, packagePrice: 60.00, packageDetails: '15GB MTN', status: OrderStatus.PAID, createdAt: new Date() }, // Most recent
 ];
 
+// MOCK PACKAGES (Needed for Configuration and Storefront)
+let MOCK_PACKAGES = [
+    { id: 'p1', packageName: '1GB MTN', dataValueGB: 1, priceGHS: 4.80, isEnabled: true },
+    { id: 'p2', packageName: '2GB MTN', dataValueGB: 2, priceGHS: 9.40, isEnabled: true },
+    { id: 'p3', packageName: '3GB MTN', dataValueGB: 3, priceGHS: 14.50, isEnabled: true },
+    { id: 'p5', packageName: '5GB MTN', dataValueGB: 5, priceGHS: 22.00, isEnabled: true },
+    { id: 'p10', packageName: '10GB MTN', dataValueGB: 10, priceGHS: 44.00, isEnabled: true },
+];
+
 // --- Database Interaction Mockups ---
 
 /**
@@ -33,15 +42,13 @@ async function fetchAllOrders() {
 }
 
 /**
- * Simulates updating a single order's status in the database (Individual Status Update).
+ * Simulates updating a single order's status in the database.
  */
 async function updateOrderStatus(orderId, newStatus) {
     const orderIndex = MOCK_ORDERS.findIndex(o => o.id === orderId);
     if (orderIndex !== -1) {
         MOCK_ORDERS[orderIndex].status = newStatus;
         MOCK_ORDERS[orderIndex].updatedAt = new Date();
-        // Live Synchronization via re-render
-        // Note: We don't call renderDashboard here, as bulk functions will call filterOrders/renderOrderTable
         return { success: true };
     }
     return { success: false };
@@ -54,7 +61,51 @@ async function fetchAdminToken() {
     return MOCK_SETTINGS.adminToken;
 }
 
-// --- BULK PROCESSING TOOLS (NEW) ---
+// --- PACKAGE CRUD MOCKUPS (NEW) ---
+
+/**
+ * Simulates fetching all packages (for the admin editor).
+ */
+async function fetchAllPackages() {
+    MOCK_PACKAGES.sort((a, b) => a.dataValueGB - b.dataValueGB);
+    return MOCK_PACKAGES;
+}
+
+/**
+ * Simulates saving a new or updated package.
+ */
+async function savePackage(pkg) {
+    if (pkg.id) {
+        // Update existing package
+        const index = MOCK_PACKAGES.findIndex(p => p.id === pkg.id);
+        if (index !== -1) {
+            MOCK_PACKAGES[index] = pkg;
+        }
+    } else {
+        // Create new package
+        pkg.id = `p${Date.now()}`;
+        MOCK_PACKAGES.push(pkg);
+    }
+    renderPackageEditor();
+}
+
+/**
+ * Simulates deleting a package.
+ */
+async function deletePackage(pkgId) {
+    MOCK_PACKAGES = MOCK_PACKAGES.filter(p => p.id !== pkgId);
+    renderPackageEditor();
+}
+
+/**
+ * Simulates updating the platform settings (WhatsApp link).
+ */
+async function updateSettings(newSettings) {
+    MOCK_SETTINGS.whatsAppLink = newSettings.whatsAppLink;
+    renderSettingsEditor();
+}
+
+// --- BULK PROCESSING TOOLS (EXISTING) ---
 
 /**
  * Gets the IDs of all checked orders.
@@ -121,13 +172,11 @@ async function handleBulkStatusChange() {
         return;
     }
 
-    // Simulate batch update operation
     for (const id of selectedOrders) {
         await updateOrderStatus(id, newStatus); 
     }
 
     alert(`${selectedOrders.length} orders successfully updated to ${newStatus}.`);
-    // Re-render the table after the batch update is complete
     filterOrders();
 }
 
@@ -143,15 +192,12 @@ function exportOrdersToCSV() {
         return;
     }
 
-    // 1. Define the CSV header: Only Customer Phone and Data Value (GB) are needed for MTN bulk systems
     let csvContent = "CustomerPhone,DataValueGB\r\n";
 
-    // 2. Add the data rows
     selectedOrders.forEach(order => {
         csvContent += `${order.customerPhone},${order.packageGB}\r\n`;
     });
 
-    // 3. Create a Blob and download the file
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement("a");
     const url = URL.createObjectURL(blob);
@@ -167,7 +213,129 @@ function exportOrdersToCSV() {
     alert(`Exported ${selectedOrders.length} orders to CSV for bulk loading.`);
 }
 
-// --- Admin Dashboard Logic ---
+// --- CONFIGURATION RENDERING AND LOGIC (NEW) ---
+
+/**
+ * Renders the package list for CRUD.
+ */
+async function renderPackageEditor() {
+    const tableBody = document.getElementById('package-editor-body');
+    const packages = await fetchAllPackages();
+    
+    if (!tableBody) return;
+
+    let html = '';
+    packages.forEach(pkg => {
+        html += `
+            <tr data-id="${pkg.id}">
+                <td>${pkg.packageName}</td>
+                <td>${pkg.dataValueGB} GB</td>
+                <td>GHS ${pkg.priceGHS.toFixed(2)}</td>
+                <td><span style="color: ${pkg.isEnabled ? 'green' : 'red'};">${pkg.isEnabled ? 'Active' : 'Disabled'}</span></td>
+                <td>
+                    <button onclick="editPackage('${pkg.id}')">Edit</button>
+                    <button onclick="handleDeletePackage('${pkg.id}')" style="background-color: #dc3545; color: white;">Delete</button>
+                </td>
+            </tr>
+        `;
+    });
+    tableBody.innerHTML = html;
+}
+
+/**
+ * Pre-fills the modal form for editing an existing package.
+ */
+function editPackage(pkgId) {
+    const pkg = MOCK_PACKAGES.find(p => p.id === pkgId);
+    if (!pkg) return;
+
+    document.getElementById('package-modal-title').textContent = 'Edit Data Package';
+    document.getElementById('pkg-id').value = pkg.id;
+    document.getElementById('pkg-name').value = pkg.packageName;
+    document.getElementById('pkg-data').value = pkg.dataValueGB;
+    document.getElementById('pkg-price').value = pkg.priceGHS;
+    document.getElementById('pkg-enabled').checked = pkg.isEnabled;
+
+    document.getElementById('package-editor-modal').style.display = 'flex';
+}
+
+/**
+ * Clears the modal form for creating a new package.
+ */
+function openCreatePackageModal() {
+    document.getElementById('package-modal-title').textContent = 'Create New Data Package';
+    document.getElementById('pkg-id').value = '';
+    document.getElementById('pkg-name').value = '';
+    document.getElementById('pkg-data').value = '';
+    document.getElementById('pkg-price').value = '';
+    document.getElementById('pkg-enabled').checked = true;
+
+    document.getElementById('package-editor-modal').style.display = 'flex';
+}
+
+/**
+ * Handles the submission of the package creation/edit form.
+ */
+async function handlePackageFormSubmit(event) {
+    event.preventDefault();
+
+    const pkg = {
+        id: document.getElementById('pkg-id').value || null,
+        packageName: document.getElementById('pkg-name').value,
+        dataValueGB: parseFloat(document.getElementById('pkg-data').value),
+        priceGHS: parseFloat(document.getElementById('pkg-price').value),
+        isEnabled: document.getElementById('pkg-enabled').checked,
+    };
+
+    await savePackage(pkg);
+    closePackageModal();
+    alert(`Package ${pkg.id ? 'updated' : 'created'} successfully.`);
+}
+
+/**
+ * Handles package deletion confirmation.
+ */
+function handleDeletePackage(pkgId) {
+    if (confirm("Are you sure you want to permanently delete this package?")) {
+        deletePackage(pkgId);
+        alert("Package deleted.");
+    }
+}
+
+/**
+ * Closes the package editor modal.
+ */
+function closePackageModal() {
+    document.getElementById('package-editor-modal').style.display = 'none';
+}
+
+/**
+ * Initializes and displays the current settings.
+ */
+async function renderSettingsEditor() {
+    const settings = MOCK_SETTINGS; 
+    if (settings) {
+        const linkInput = document.getElementById('whats-app-link-input');
+        if(linkInput) linkInput.value = settings.whatsAppLink;
+    }
+}
+
+/**
+ * Handles the submission of the settings form.
+ */
+async function handleSettingsFormSubmit(event) {
+    event.preventDefault();
+
+    const newSettings = {
+        whatsAppLink: document.getElementById('whats-app-link-input').value.trim(),
+    };
+    
+    await updateSettings(newSettings);
+    alert("Platform settings (WhatsApp link) updated successfully.");
+}
+
+
+// --- Admin Dashboard Logic (MODIFIED) ---
 
 /**
  * Handles the Login Barrier check.
@@ -189,7 +357,7 @@ async function handleLogin(event) {
 }
 
 /**
- * Renders the orders into the management table. (Updated to populate filter/bulk dropdowns)
+ * Renders the orders into the management table. (Existing bulk logic)
  */
 async function renderOrderTable(orders) {
     const tableBody = document.getElementById('orders-table-body');
@@ -263,17 +431,15 @@ async function handleStatusChange(selectElement) {
     
     if (confirm(`Are you sure you want to change order ${orderId} status to ${newStatus}?`)) {
         await updateOrderStatus(orderId, newStatus);
-        // Re-render the filtered view
         filterOrders();
         alert(`Status for ${orderId} updated to ${newStatus}.`);
     } else {
-        // Revert the dropdown if canceled
         renderDashboard(); 
     }
 }
 
 /**
- * Renders the correct view (Login or Dashboard) based on session status.
+ * Renders the correct view (Login or Dashboard) based on session status. (MODIFIED)
  */
 async function renderDashboard() {
     const isAdminValid = sessionStorage.getItem('admin_session_valid') === 'true';
@@ -285,8 +451,13 @@ async function renderDashboard() {
             loginView.style.display = 'none';
             dashboardView.style.display = 'block';
             
-            // Render orders, applying the filter if one is set
+            // Render orders
             filterOrders(); 
+            
+            // --- NEW: Render Configuration Editors ---
+            renderPackageEditor();
+            renderSettingsEditor();
+            // --- END NEW ---
         } else {
             loginView.style.display = 'block';
             dashboardView.style.display = 'none';
@@ -311,13 +482,23 @@ document.addEventListener('DOMContentLoaded', () => {
         loginForm.addEventListener('submit', handleLogin);
     }
     
-    // Check session on load/hash change for secure access routing
     window.addEventListener('hashchange', renderDashboard);
     
-    // Attach filter handler
     const filterSelect = document.getElementById('filter-status');
     if (filterSelect) {
         filterSelect.addEventListener('change', filterOrders);
+    }
+
+    // Attach form submit handler for package modal (NEW)
+    const packageForm = document.getElementById('package-form');
+    if (packageForm) {
+        packageForm.addEventListener('submit', handlePackageFormSubmit);
+    }
+
+    // Attach form submit handler for settings (NEW)
+    const settingsForm = document.getElementById('settings-form');
+    if (settingsForm) {
+        settingsForm.addEventListener('submit', handleSettingsFormSubmit);
     }
     
     renderDashboard();
