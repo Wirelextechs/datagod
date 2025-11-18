@@ -1,6 +1,24 @@
 // storefront.js
 
-// --- Utility Functions (From previous conversation) ---
+// --- MOCK DATABASE DATA (Simulates live data from the backend) ---
+
+const MOCK_PACKAGES = [
+  { id: 'p1', packageName: '1GB MTN', dataValueGB: 1, priceGHS: 4.80, isEnabled: true },
+  { id: 'p2', packageName: '2GB MTN', dataValueGB: 2, priceValueGB: 9.40, isEnabled: true },
+  { id: 'p3', packageName: '3GB MTN', dataValueGB: 3, priceGHS: 14.50, isEnabled: true },
+  { id: 'p4', packageName: '4GB MTN', dataValueGB: 4, priceGHS: 18.40, isEnabled: false }, // Disabled for testing
+  { id: 'p5', packageName: '5GB MTN', dataValueGB: 5, priceGHS: 22.00, isEnabled: true },
+  { id: 'p10', packageName: '10GB MTN', dataValueGB: 10, priceGHS: 44.00, isEnabled: true },
+];
+
+const MOCK_SETTINGS = {
+  whatsAppLink: 'https://wa.me/233241234567?text=I%20need%20support%20with%20data%20purchase',
+};
+
+// Enum for clear, controlled status values
+const ORDER_STATUS = { PAID: 'PAID', PROCESSING: 'PROCESSING', FULFILLED: 'FULFILLED', CANCELLED: 'CANCELLED' };
+
+// --- Utility Functions ---
 
 /**
  * Generates a unique 4-digit string ID.
@@ -15,9 +33,8 @@ function generateShortId() {
  * Simulates fetching enabled packages, sorted by dataValueGB (Ascending).
  */
 async function fetchPackages() {
-    // In a real app, this is db.collection('packages').where('isEnabled', '==', true).orderBy('dataValueGB').get()
     const enabledPackages = MOCK_PACKAGES.filter(p => p.isEnabled);
-    enabledPackages.sort((a, b) => a.dataValueGB - b.dataValueGB);
+    enabledPackages.sort((a, b) => a.dataValueGB - b.dataValueGB); // Intuitive Ordering by GB
     return enabledPackages;
 }
 
@@ -25,7 +42,6 @@ async function fetchPackages() {
  * Simulates fetching the platform settings (WhatsApp Link).
  */
 async function fetchSettings() {
-    // In a real app, this is db.collection('settings').doc('platform').get()
     return MOCK_SETTINGS;
 }
 
@@ -33,17 +49,16 @@ async function fetchSettings() {
  * Simulates creating a new order transaction in the database.
  */
 async function createOrderInDB(orderData) {
-    // In a real app, this is db.collection('orders').add(orderData)
+    // In a real system, this is a call to your DB/API endpoint.
     console.log('--- Order Submitted to DB ---');
     console.log(orderData);
-    // Simulate successful database ID creation
+    // Simulate successful submission and return the Short ID
     return { success: true, shortId: orderData.shortId };
 }
 
 // --- Storefront Logic ---
 
 let selectedPackage = null;
-const ORDER_STATUS = { PAID: 'PAID' };
 
 /**
  * Renders the package catalog dynamically.
@@ -54,7 +69,7 @@ async function renderCatalog() {
     
     if (!catalogContainer) return;
 
-    catalogContainer.innerHTML = ''; // Clear previous content
+    catalogContainer.innerHTML = ''; 
 
     packages.forEach(pkg => {
         const card = document.createElement('div');
@@ -68,7 +83,7 @@ async function renderCatalog() {
         catalogContainer.appendChild(card);
     });
 
-    // Attach event listeners after rendering
+    // Attach event listeners for purchase initiation
     document.querySelectorAll('.buy-btn').forEach(button => {
         button.addEventListener('click', (e) => {
             const pkgId = e.target.getAttribute('data-id');
@@ -86,7 +101,7 @@ async function renderContactLink() {
     const settings = await fetchSettings();
     
     if (contactBtn) {
-        contactBtn.href = settings.whatsAppLink;
+        contactBtn.href = settings.whatsAppLink; // Admin Configurability
     }
 }
 
@@ -101,7 +116,7 @@ function openOrderModal() {
     if (modal && selectedPackage) {
         modalTitle.textContent = selectedPackage.packageName;
         modalPrice.textContent = `GHS ${selectedPackage.priceGHS.toFixed(2)}`;
-        document.getElementById('momo-number').value = ''; // Clear previous input
+        document.getElementById('momo-number').value = ''; 
         modal.style.display = 'flex';
     }
 }
@@ -117,7 +132,7 @@ function closeOrderModal() {
 }
 
 /**
- * Handles the final order submission.
+ * Handles the final order submission (Transaction Creation).
  */
 async function handleOrderSubmission(event) {
     event.preventDefault();
@@ -125,18 +140,18 @@ async function handleOrderSubmission(event) {
     const customerPhone = momoNumberInput.value.trim();
 
     if (!selectedPackage || !customerPhone || customerPhone.length < 10) {
-        alert('Please enter a valid MTN Mobile Money number.');
+        alert('Please enter a valid MTN Mobile Money number (10 digits).');
         return;
     }
 
-    // 1. Transaction Creation
+    // Create the transaction record
     const orderData = {
-        shortId: generateShortId(), // Unique 4-digit ID
+        shortId: generateShortId(), // Generate unique 4-digit Order ID
         customerPhone: customerPhone,
         packageGB: selectedPackage.dataValueGB,
         packagePrice: selectedPackage.priceGHS,
         packageDetails: selectedPackage.packageName,
-        status: ORDER_STATUS.PAID, // Set to PAID immediately
+        status: ORDER_STATUS.PAID, // Initial status is automatically set to PAID
         createdAt: new Date(),
         updatedAt: new Date(),
     };
@@ -144,10 +159,10 @@ async function handleOrderSubmission(event) {
     try {
         const result = await createOrderInDB(orderData);
         
-        // 2. Confirmation and Tracking
+        // Confirmation and Tracking
         if (result.success) {
             closeOrderModal();
-            // Show the success screen with the Short ID
+            // Show the success screen with the 4-digit Short ID
             showSuccessScreen(result.shortId, selectedPackage.packageName);
         } else {
             alert('Order creation failed. Please try again.');
@@ -175,7 +190,6 @@ function showSuccessScreen(shortId, packageName) {
                 </div>
                 <p class="instruction">
                     **IMPORTANT:** Please save this 4-digit ID to track your order status on this page.
-                    Your data will be loaded shortly.
                 </p>
                 <button onclick="window.location.reload()">Back to Store</button>
             </div>
@@ -188,13 +202,11 @@ document.addEventListener('DOMContentLoaded', () => {
     renderCatalog();
     renderContactLink();
     
-    // Attach the order submission handler to the modal form
     const orderForm = document.getElementById('order-form');
     if (orderForm) {
         orderForm.addEventListener('submit', handleOrderSubmission);
     }
 
-    // Attach handler for closing the modal
     const closeBtn = document.querySelector('.close-button');
     if (closeBtn) {
         closeBtn.addEventListener('click', closeOrderModal);
