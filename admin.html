@@ -35,6 +35,10 @@
             display: inline-block;
         }
         .status-dropdown { padding: 5px; border-radius: 4px; }
+
+        /* General Button Styling */
+        .btn-primary { background-color: #007bff; color: white; border: none; padding: 10px 15px; border-radius: 4px; cursor: pointer; }
+        .btn-success { background-color: #28a745; color: white; border: none; padding: 10px 15px; border-radius: 4px; cursor: pointer; }
     </style>
 </head>
 <body>
@@ -58,18 +62,25 @@
 
             <div class="controls">
                 <h3>Order Filtering & Bulk Tools</h3>
+                
                 <label for="filter-status">Filter by Status:</label>
                 <select id="filter-status">
                     <option value="ALL">ALL Orders</option>
-                </select>
-                <button style="margin-left: 20px;" onclick="alert('Bulk selection and processing logic coming next!')">Bulk Action</button>
-                <button onclick="alert('CSV Export logic coming next!')">Download CSV</button>
+                    </select>
+
+                <label for="bulk-status-select" style="margin-left: 30px;">Bulk Status Change:</label>
+                <select id="bulk-status-select">
+                    <option value="">Select Target Status</option>
+                    </select>
+                <button onclick="handleBulkStatusChange()" class="btn-primary" style="margin-left: 10px;">Apply Bulk Status</button>
+                
+                <button onclick="exportOrdersToCSV()" class="btn-success" style="margin-left: 30px;">Download CSV for Loading</button>
             </div>
 
             <table>
                 <thead>
                     <tr>
-                        <th>Select</th>
+                        <th><input type="checkbox" id="select-all-checkbox" onclick="toggleSelectAll(this)"></th>
                         <th>Short ID</th>
                         <th>Customer Phone</th>
                         <th>Package</th>
@@ -83,7 +94,7 @@
             </table>
 
             <h2 style="margin-top: 40px;">Configuration</h2>
-            <p>Package Editor and Settings Editor functionality will be built here soon.</p>
+            <p>Package Editor and Settings Editor functionality will be built here next.</p>
         </div>
     </div>
     
