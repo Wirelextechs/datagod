@@ -36,9 +36,22 @@
         }
         .status-dropdown { padding: 5px; border-radius: 4px; }
 
-        /* General Button Styling */
+        /* General Button/Input Styling */
         .btn-primary { background-color: #007bff; color: white; border: none; padding: 10px 15px; border-radius: 4px; cursor: pointer; }
         .btn-success { background-color: #28a745; color: white; border: none; padding: 10px 15px; border-radius: 4px; cursor: pointer; }
+        input[type="text"], input[type="number"], input[type="url"] { padding: 8px; border: 1px solid #ccc; border-radius: 4px; }
+
+        /* Modal Styling (NEW) */
+        .modal {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background-color: rgba(0, 0, 0, 0.7); display: none; 
+            justify-content: center; align-items: center; z-index: 1000;
+        }
+        .modal-content {
+            background-color: white; padding: 30px; border-radius: 10px;
+            width: 90%; max-width: 400px; position: relative;
+        }
+        .close-button { position: absolute; top: 10px; right: 20px; font-size: 24px; cursor: pointer; }
     </style>
 </head>
 <body>
@@ -66,12 +79,12 @@
                 <label for="filter-status">Filter by Status:</label>
                 <select id="filter-status">
                     <option value="ALL">ALL Orders</option>
-                    </select>
+                </select>
 
                 <label for="bulk-status-select" style="margin-left: 30px;">Bulk Status Change:</label>
                 <select id="bulk-status-select">
                     <option value="">Select Target Status</option>
-                    </select>
+                </select>
                 <button onclick="handleBulkStatusChange()" class="btn-primary" style="margin-left: 10px;">Apply Bulk Status</button>
                 
                 <button onclick="exportOrdersToCSV()" class="btn-success" style="margin-left: 30px;">Download CSV for Loading</button>
@@ -93,8 +106,63 @@
                     </tbody>
             </table>
 
-            <h2 style="margin-top: 40px;">Configuration</h2>
-            <p>Package Editor and Settings Editor functionality will be built here next.</p>
+            <h2 style="margin-top: 40px;">💾 Data Configuration Control</h2>
+            <hr>
+
+            <section id="settings-editor" style="margin-bottom: 30px; padding: 20px; border: 1px solid #ccc; background-color: white; border-radius: 5px;">
+                <h3>Settings Editor: WhatsApp Channel</h3>
+                <p>This link is displayed on the public Storefront.</p>
+                <form id="settings-form">
+                    <label for="whats-app-link-input" style="display: block; margin-bottom: 5px;">WhatsApp Channel Link (Full URL):</label>
+                    <input type="url" id="whats-app-link-input" style="width: 80%; padding: 8px; margin-right: 10px;" required>
+                    <button type="submit" class="btn-success">Save Settings</button>
+                </form>
+            </section>
+
+            <section id="package-editor" style="padding: 20px; border: 1px solid #ccc; background-color: white; border-radius: 5px;">
+                <h3>Package Editor (CRUD)</h3>
+                <button onclick="openCreatePackageModal()" class="btn-primary" style="margin-bottom: 15px;">+ Create New Package</button>
+                
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>Data (GB)</th>
+                            <th>Price (GHS)</th>
+                            <th>Status (Storefront)</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="package-editor-body">
+                        </tbody>
+                </table>
+            </section>
+        </div>
+        </div>
+    
+    <div id="package-editor-modal" class="modal">
+        <div class="modal-content">
+            <span class="close-button" onclick="closePackageModal()">&times;</span>
+            <h3 id="package-modal-title">Create New Data Package</h3>
+            
+            <form id="package-form">
+                <input type="hidden" id="pkg-id">
+                
+                <label for="pkg-name" style="display: block; margin-top: 10px;">Package Name (e.g., 5GB MTN):</label>
+                <input type="text" id="pkg-name" required style="width: 100%; margin-bottom: 10px;">
+
+                <label for="pkg-data" style="display: block; margin-top: 10px;">Data Value (GB):</label>
+                <input type="number" id="pkg-data" step="any" required style="width: 100%; margin-bottom: 10px;">
+                
+                <label for="pkg-price" style="display: block; margin-top: 10px;">Price (GHS):</label>
+                <input type="number" id="pkg-price" step="0.01" required style="width: 100%; margin-bottom: 15px;">
+                
+                <label>
+                    <input type="checkbox" id="pkg-enabled"> Is Enabled (Visible on Storefront)
+                </label>
+                
+                <button type="submit" class="btn-success" style="margin-top: 15px;">Save Package</button>
+            </form>
         </div>
     </div>
     
