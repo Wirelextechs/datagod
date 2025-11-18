@@ -1,32 +1,13 @@
-// storefront.js
+// storefront.js (COMPLETE SUPABASE INTEGRATION)
 
-// --- MOCK DATABASE DATA (Simulates live data from the backend) ---
+// --- SUPABASE INITIALIZATION ---
+const SUPABASE_URL = 'https://sjvxlvsmjwpfxlkjjvod.supabase.co'; 
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNqdnhsdnNtandwZnhsa2pqdm9kIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjM0MzM1NTksImV4cCI6MjA3OTAwOTU1OX0.VmrDs5I6zn9wY1VUAsk0f1IzcvjLI7oe_BT5o1CT8J0'; 
 
-const MOCK_PACKAGES = [
-  { id: 'p1', packageName: '1GB MTN', dataValueGB: 1, priceGHS: 4.80, isEnabled: true },
-  { id: 'p2', packageName: '2GB MTN', dataValueGB: 2, priceGHS: 9.40, isEnabled: true },
-  { id: 'p3', packageName: '3GB MTN', dataValueGB: 3, priceGHS: 14.50, isEnabled: true },
-  { id: 'p4', packageName: '4GB MTN', dataValueGB: 4, priceGHS: 18.40, isEnabled: false }, 
-  { id: 'p5', packageName: '5GB MTN', dataValueGB: 5, priceGHS: 22.00, isEnabled: true },
-  { id: 'p10', packageName: '10GB MTN', dataValueGB: 10, priceGHS: 44.00, isEnabled: true },
-];
+const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-const MOCK_SETTINGS = {
-  whatsAppLink: 'https://wa.me/233241234567?text=I%20need%20support%20with%20data%20purchase',
-};
-
-// Enum for clear, controlled status values
+// Enum for clear, controlled status values (Matches database status)
 const ORDER_STATUS = { PAID: 'PAID', PROCESSING: 'PROCESSING', FULFILLED: 'FULFILLED', CANCELLED: 'CANCELLED' };
-
-// MOCK ORDERS COLLECTION (Example records for status checking)
-const MOCK_ORDERS = [
-    { shortId: '1234', packageDetails: '5GB MTN', status: ORDER_STATUS.PROCESSING }, // PROCESSING Example
-    { shortId: '5678', packageDetails: '1GB MTN', status: ORDER_STATUS.FULFILLED }, // FULFILLED Example
-    { shortId: '9012', packageDetails: '10GB MTN', status: ORDER_STATUS.PAID }, // PAID Example
-    { shortId: '3456', packageDetails: '3GB MTN', status: ORDER_STATUS.CANCELLED }, // CANCELLED Example
-];
-
-// --- END MOCK DATABASE DATA ---
 
 // --- Utility Functions ---
 
@@ -37,48 +18,102 @@ function generateShortId() {
     return Math.floor(1000 + Math.random() * 9000).toString();
 }
 
-// --- Database Interaction Mockups ---
+// --- Supabase Interaction Functions ---
 
 /**
- * Simulates fetching enabled packages, sorted by dataValueGB (Ascending).
+ * Fetches enabled packages, sorted by dataValueGB (Ascending).
  */
 async function fetchPackages() {
-    const enabledPackages = MOCK_PACKAGES.filter(p => p.isEnabled);
-    enabledPackages.sort((a, b) => a.dataValueGB - b.dataValueGB); // Intuitive Ordering by GB
-    return enabledPackages;
+    const { data, error } = await supabase
+        .from('packages')
+        .select('id, package_name, data_value_gb, price_ghs')
+        .eq('is_enabled', true)
+        .order('data_value_gb', { ascending: true });
+
+    if (error) {
+        console.error('Error fetching packages:', error);
+        return [];
+    }
+    // Map data fields to match original JS object structure for compatibility
+    return data.map(p => ({
+        id: p.id,
+        packageName: p.package_name,
+        dataValueGB: p.data_value_gb,
+        priceGHS: p.price_ghs,
+        isEnabled: true // Already filtered by is_enabled=true
+    }));
 }
 
 /**
- * Simulates fetching the platform settings (WhatsApp Link).
+ * Fetches the platform settings (WhatsApp Link).
  */
 async function fetchSettings() {
-    return MOCK_SETTINGS;
+    const { data, error } = await supabase
+        .from('settings')
+        .select('whats_app_link')
+        .limit(1)
+        .single();
+    
+    if (error && error.code !== 'PGRST116') {
+        console.error('Error fetching settings:', error);
+        return { whatsAppLink: '#' }; // Fallback
+    }
+    // Map data field
+    return { whatsAppLink: data ? data.whats_app_link : '#' };
 }
 
 /**
- * Simulates creating a new order transaction in the database.
+ * Creates a new order transaction in the database.
  */
 async function createOrderInDB(orderData) {
-    // In a real system, this is a call to your DB/API endpoint.
-    console.log('--- Order Submitted to DB ---');
-    console.log(orderData);
-    // Simulate successful submission and return the Short ID
-    return { success: true, shortId: orderData.shortId };
+    const { data, error } = await supabase
+        .from('orders')
+        .insert([{
+            short_id: orderData.shortId,
+            customer_phone: orderData.customerPhone,
+            package_gb: orderData.packageGB,
+            package_price: orderData.packagePrice,
+            package_details: orderData.packageDetails,
+            status: orderData.status,
+            created_at: orderData.createdAt,
+        }])
+        .select('short_id'); 
+
+    if (error) {
+        console.error('Error submitting order:', error);
+        return { success: false };
+    }
+    return { success: true, shortId: data[0].short_id }; 
 }
 
-// --- Status Checker Logic (NEW) ---
-
 /**
- * Simulates querying the database to find an order by Short ID.
+ * Queries the database to find an order by Short ID.
  */
 async function findOrderByShortId(shortId) {
-    // In a real system: db.collection('orders').where('shortId', '==', shortId).limit(1).get()
-    return MOCK_ORDERS.find(order => order.shortId === shortId);
+    const { data, error } = await supabase
+        .from('orders')
+        .select('package_details, status') // Only fetch needed fields
+        .eq('short_id', shortId)
+        .single(); 
+
+    if (error && error.code !== 'PGRST116') { 
+        console.error('Error looking up order:', error);
+    }
+    
+    // Map data fields back to original object structure
+    if (data) {
+        return {
+            packageDetails: data.package_details,
+            status: data.status
+        };
+    }
+    return null;
 }
 
-/**
- * Provides color-coded HTML output based on the order status.
- */
+// --- Status Checker Logic (NO CHANGE NEEDED) ---
+// (getStatusReportHtml and handleStatusLookup functions remain the same)
+
+// ... [Keep getStatusReportHtml function] ...
 function getStatusReportHtml(order) {
     let color, label;
 
@@ -115,9 +150,7 @@ function getStatusReportHtml(order) {
     `;
 }
 
-/**
- * Event handler for the Order Status Checker lookup.
- */
+// ... [Keep handleStatusLookup function] ...
 async function handleStatusLookup() {
     const lookupInput = document.getElementById('short-id-lookup');
     const reportArea = document.getElementById('status-report');
@@ -139,8 +172,9 @@ async function handleStatusLookup() {
     }
 }
 
-// --- Storefront Logic (Ordering) ---
+// --- Storefront Logic (Ordering) (NO CHANGE NEEDED) ---
 
+// ... [Keep all other functions including renderCatalog, renderContactLink, etc.] ...
 let selectedPackage = null;
 
 /**
@@ -170,7 +204,8 @@ async function renderCatalog() {
     document.querySelectorAll('.buy-btn').forEach(button => {
         button.addEventListener('click', (e) => {
             const pkgId = e.target.getAttribute('data-id');
-            selectedPackage = packages.find(p => p.id === pkgId);
+            // Find the package from the fetched data
+            selectedPackage = packages.find(p => p.id === pkgId); 
             openOrderModal();
         });
     });
@@ -184,7 +219,8 @@ async function renderContactLink() {
     const settings = await fetchSettings();
     
     if (contactBtn) {
-        contactBtn.href = settings.whatsAppLink; // Admin Configurability
+        // Use the mapped field name
+        contactBtn.href = settings.whatsAppLink; 
     }
 }
 
@@ -229,12 +265,12 @@ async function handleOrderSubmission(event) {
 
     // Create the transaction record
     const orderData = {
-        shortId: generateShortId(), // Generate unique 4-digit Order ID
+        shortId: generateShortId(), 
         customerPhone: customerPhone,
         packageGB: selectedPackage.dataValueGB,
         packagePrice: selectedPackage.priceGHS,
         packageDetails: selectedPackage.packageName,
-        status: ORDER_STATUS.PAID, // Initial status is automatically set to PAID
+        status: ORDER_STATUS.PAID, 
         createdAt: new Date(),
         updatedAt: new Date(),
     };
@@ -245,7 +281,6 @@ async function handleOrderSubmission(event) {
         // Confirmation and Tracking
         if (result.success) {
             closeOrderModal();
-            // Show the success screen with the 4-digit Short ID
             showSuccessScreen(result.shortId, selectedPackage.packageName);
         } else {
             alert('Order creation failed. Please try again.');
@@ -295,7 +330,6 @@ document.addEventListener('DOMContentLoaded', () => {
         closeBtn.addEventListener('click', closeOrderModal);
     }
 
-    // Attach handler for status lookup (NEW)
     const lookupBtn = document.getElementById('lookup-btn');
     if (lookupBtn) {
         lookupBtn.addEventListener('click', handleStatusLookup);
