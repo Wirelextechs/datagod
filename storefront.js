@@ -4,9 +4,9 @@
 
 const MOCK_PACKAGES = [
   { id: 'p1', packageName: '1GB MTN', dataValueGB: 1, priceGHS: 4.80, isEnabled: true },
-  { id: 'p2', packageName: '2GB MTN', dataValueGB: 2, priceValueGB: 9.40, isEnabled: true },
+  { id: 'p2', packageName: '2GB MTN', dataValueGB: 2, priceGHS: 9.40, isEnabled: true },
   { id: 'p3', packageName: '3GB MTN', dataValueGB: 3, priceGHS: 14.50, isEnabled: true },
-  { id: 'p4', packageName: '4GB MTN', dataValueGB: 4, priceGHS: 18.40, isEnabled: false }, // Disabled for testing
+  { id: 'p4', packageName: '4GB MTN', dataValueGB: 4, priceGHS: 18.40, isEnabled: false }, 
   { id: 'p5', packageName: '5GB MTN', dataValueGB: 5, priceGHS: 22.00, isEnabled: true },
   { id: 'p10', packageName: '10GB MTN', dataValueGB: 10, priceGHS: 44.00, isEnabled: true },
 ];
@@ -17,6 +17,16 @@ const MOCK_SETTINGS = {
 
 // Enum for clear, controlled status values
 const ORDER_STATUS = { PAID: 'PAID', PROCESSING: 'PROCESSING', FULFILLED: 'FULFILLED', CANCELLED: 'CANCELLED' };
+
+// MOCK ORDERS COLLECTION (Example records for status checking)
+const MOCK_ORDERS = [
+    { shortId: '1234', packageDetails: '5GB MTN', status: ORDER_STATUS.PROCESSING }, // PROCESSING Example
+    { shortId: '5678', packageDetails: '1GB MTN', status: ORDER_STATUS.FULFILLED }, // FULFILLED Example
+    { shortId: '9012', packageDetails: '10GB MTN', status: ORDER_STATUS.PAID }, // PAID Example
+    { shortId: '3456', packageDetails: '3GB MTN', status: ORDER_STATUS.CANCELLED }, // CANCELLED Example
+];
+
+// --- END MOCK DATABASE DATA ---
 
 // --- Utility Functions ---
 
@@ -56,7 +66,80 @@ async function createOrderInDB(orderData) {
     return { success: true, shortId: orderData.shortId };
 }
 
-// --- Storefront Logic ---
+// --- Status Checker Logic (NEW) ---
+
+/**
+ * Simulates querying the database to find an order by Short ID.
+ */
+async function findOrderByShortId(shortId) {
+    // In a real system: db.collection('orders').where('shortId', '==', shortId).limit(1).get()
+    return MOCK_ORDERS.find(order => order.shortId === shortId);
+}
+
+/**
+ * Provides color-coded HTML output based on the order status.
+ */
+function getStatusReportHtml(order) {
+    let color, label;
+
+    switch (order.status) {
+        case ORDER_STATUS.PAID:
+            color = 'orange';
+            label = 'Payment received and confirmed. Awaiting administrator processing.';
+            break;
+        case ORDER_STATUS.PROCESSING:
+            color = 'blue';
+            label = 'Order is actively being loaded onto your number.';
+            break;
+        case ORDER_STATUS.FULFILLED:
+            color = 'green';
+            label = 'Data has been successfully loaded to your number!';
+            break;
+        case ORDER_STATUS.CANCELLED:
+            color = 'red';
+            label = 'Order could not be completed. Please contact support immediately.';
+            break;
+        default:
+            color = 'gray';
+            label = 'Status unknown.';
+    }
+
+    return `
+        <div style="margin-top: 10px; padding: 15px; border-left: 5px solid ${color}; background-color: #f8f8f8;">
+            <p><strong>Package:</strong> ${order.packageDetails}</p>
+            <p><strong>Current Status:</strong> 
+                <span style="color: ${color}; font-weight: bold; text-transform: uppercase;">${order.status}</span>
+            </p>
+            <p>${label}</p>
+        </div>
+    `;
+}
+
+/**
+ * Event handler for the Order Status Checker lookup.
+ */
+async function handleStatusLookup() {
+    const lookupInput = document.getElementById('short-id-lookup');
+    const reportArea = document.getElementById('status-report');
+    const shortId = lookupInput.value.trim();
+
+    if (shortId.length !== 4 || isNaN(shortId)) {
+        reportArea.innerHTML = '<p style="color: red;">Please enter a valid 4-digit Short ID.</p>';
+        return;
+    }
+
+    reportArea.innerHTML = '<p>Searching...</p>';
+    
+    const order = await findOrderByShortId(shortId);
+
+    if (order) {
+        reportArea.innerHTML = getStatusReportHtml(order);
+    } else {
+        reportArea.innerHTML = '<p style="color: red;">Order not found. Please verify the ID.</p>';
+    }
+}
+
+// --- Storefront Logic (Ordering) ---
 
 let selectedPackage = null;
 
@@ -210,5 +293,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const closeBtn = document.querySelector('.close-button');
     if (closeBtn) {
         closeBtn.addEventListener('click', closeOrderModal);
+    }
+
+    // Attach handler for status lookup (NEW)
+    const lookupBtn = document.getElementById('lookup-btn');
+    if (lookupBtn) {
+        lookupBtn.addEventListener('click', handleStatusLookup);
     }
 });
