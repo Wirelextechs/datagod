@@ -1,0 +1,11 @@
+# .gitignore
+
+# Node.js dependencies
+/backend/node_modules
+
+# Environment variables (CRITICAL: Never commit secrets!)
+/backend/.env
+
+# Logs and Build Files
+npm-debug.log*
+.DS_Store
