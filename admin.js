@@ -1,12 +1,14 @@
-// admin.js (COMPLETE UPDATED CODE)
+// admin.js (COMPLETE SUPABASE INTEGRATION)
 
-// --- MOCK DATABASE DATA (Expanded to include Packages) ---
+// --- SUPABASE INITIALIZATION ---
+const SUPABASE_URL = 'https://sjvxlvsmjwpfxlkjjvod.supabase.co'; 
+// NOTE: We use the same public key here. For a *real* admin dashboard,
+// you would use a separate service key or Row Level Security (RLS) on Supabase.
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNqdnhsdnNtandwZnhsa2pqdm9kIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjM0MzM1NTksImV4cCI6MjA3OTAwOTU1OX0.VmrDs5I6zn9wY1VUAsk0f1IzcvjLI7oe_BT5o1CT8J0'; 
 
-const MOCK_SETTINGS = {
-  whatsAppLink: 'https://wa.me/233241234567',
-  adminToken: 'DATA_GOD_SECRET_KEY_2025', // The token needed for access
-};
+const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
+// Enum for clear, controlled status values (Matches database status)
 const OrderStatus = {
     PAID: 'PAID',
     PROCESSING: 'PROCESSING',
@@ -14,98 +16,176 @@ const OrderStatus = {
     CANCELLED: 'CANCELLED'
 };
 
-// MOCK ORDERS COLLECTION (Simulates data for the management table)
-let MOCK_ORDERS = [
-    { id: 'ord1', shortId: '4591', customerPhone: '0241111222', packageGB: 5, packagePrice: 22.00, packageDetails: '5GB MTN', status: OrderStatus.PAID, createdAt: new Date(Date.now() - 3600000) },
-    { id: 'ord2', shortId: '1003', customerPhone: '0559998888', packageGB: 10, packagePrice: 44.00, packageDetails: '10GB MTN', status: OrderStatus.PROCESSING, createdAt: new Date(Date.now() - 1800000) },
-    { id: 'ord3', shortId: '7219', customerPhone: '0205554444', packageGB: 2, packagePrice: 9.40, packageDetails: '2GB MTN', status: OrderStatus.FULFILLED, createdAt: new Date(Date.now() - 86400000) },
-    { id: 'ord4', shortId: '9876', customerPhone: '0543332222', packageGB: 15, packagePrice: 60.00, packageDetails: '15GB MTN', status: OrderStatus.PAID, createdAt: new Date() }, // Most recent
-];
-
-// MOCK PACKAGES (Needed for Configuration and Storefront)
-let MOCK_PACKAGES = [
-    { id: 'p1', packageName: '1GB MTN', dataValueGB: 1, priceGHS: 4.80, isEnabled: true },
-    { id: 'p2', packageName: '2GB MTN', dataValueGB: 2, priceGHS: 9.40, isEnabled: true },
-    { id: 'p3', packageName: '3GB MTN', dataValueGB: 3, priceGHS: 14.50, isEnabled: true },
-    { id: 'p5', packageName: '5GB MTN', dataValueGB: 5, priceGHS: 22.00, isEnabled: true },
-    { id: 'p10', packageName: '10GB MTN', dataValueGB: 10, priceGHS: 44.00, isEnabled: true },
-];
-
-// --- Database Interaction Mockups ---
+// --- Supabase Interaction Functions ---
 
 /**
- * Simulates fetching the list of all orders, sorted by newest first.
+ * Fetches the list of all orders, sorted by newest first.
  */
 async function fetchAllOrders() {
-    MOCK_ORDERS.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
-    return MOCK_ORDERS;
+    const { data, error } = await supabase
+        .from('orders')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+    if (error) {
+        console.error('Error fetching orders:', error);
+        return [];
+    }
+    
+    // Map data fields from snake_case to camelCase for existing JS compatibility
+    return data.map(o => ({
+        id: o.id,
+        shortId: o.short_id,
+        customerPhone: o.customer_phone,
+        packageGB: o.package_gb,
+        packagePrice: o.package_price,
+        packageDetails: o.package_details,
+        status: o.status,
+        createdAt: new Date(o.created_at),
+        updatedAt: o.updated_at ? new Date(o.updated_at) : null,
+    }));
 }
 
 /**
- * Simulates updating a single order's status in the database.
+ * Updates a single order's status in the database.
  */
 async function updateOrderStatus(orderId, newStatus) {
-    const orderIndex = MOCK_ORDERS.findIndex(o => o.id === orderId);
-    if (orderIndex !== -1) {
-        MOCK_ORDERS[orderIndex].status = newStatus;
-        MOCK_ORDERS[orderIndex].updatedAt = new Date();
-        return { success: true };
+    const { error } = await supabase
+        .from('orders')
+        .update({ status: newStatus, updated_at: new Date().toISOString() })
+        .eq('id', orderId);
+
+    if (error) {
+        console.error('Error updating order status:', error);
+        return { success: false };
     }
-    return { success: false };
+    return { success: true };
 }
 
 /**
- * Simulates fetching the admin token from the database settings.
+ * Fetches the admin token from the database settings.
  */
 async function fetchAdminToken() {
-    return MOCK_SETTINGS.adminToken;
+    const { data, error } = await supabase
+        .from('settings')
+        .select('admin_token')
+        .limit(1)
+        .single();
+    
+    if (error) {
+        console.error('Error fetching admin token:', error);
+        return null;
+    }
+    return data.admin_token;
 }
 
-// --- PACKAGE CRUD MOCKUPS (NEW) ---
+// --- PACKAGE CRUD FUNCTIONS (NEW) ---
 
 /**
- * Simulates fetching all packages (for the admin editor).
+ * Fetches all packages (for the admin editor).
  */
 async function fetchAllPackages() {
-    MOCK_PACKAGES.sort((a, b) => a.dataValueGB - b.dataValueGB);
-    return MOCK_PACKAGES;
+    const { data, error } = await supabase
+        .from('packages')
+        .select('*')
+        .order('data_value_gb', { ascending: true });
+
+    if (error) {
+        console.error('Error fetching packages:', error);
+        return [];
+    }
+    
+    // Map data fields
+    return data.map(p => ({
+        id: p.id,
+        packageName: p.package_name,
+        dataValueGB: p.data_value_gb,
+        priceGHS: p.price_ghs,
+        isEnabled: p.is_enabled
+    }));
 }
 
 /**
- * Simulates saving a new or updated package.
+ * Saves a new or updated package.
  */
 async function savePackage(pkg) {
-    if (pkg.id) {
-        // Update existing package
-        const index = MOCK_PACKAGES.findIndex(p => p.id === pkg.id);
-        if (index !== -1) {
-            MOCK_PACKAGES[index] = pkg;
-        }
-    } else {
-        // Create new package
-        pkg.id = `p${Date.now()}`;
-        MOCK_PACKAGES.push(pkg);
+    const packageData = {
+        id: pkg.id || `p${Date.now()}`, // Ensure ID exists for insert/upsert
+        package_name: pkg.packageName,
+        data_value_gb: pkg.dataValueGB,
+        price_ghs: pkg.priceGHS,
+        is_enabled: pkg.isEnabled,
+        updated_at: new Date().toISOString()
+    };
+    
+    // Use upsert to handle both insert (new) and update (existing)
+    const { error } = await supabase
+        .from('packages')
+        .upsert(packageData);
+
+    if (error) {
+        console.error('Error saving package:', error);
+        return { success: false };
     }
     renderPackageEditor();
+    return { success: true };
 }
 
 /**
- * Simulates deleting a package.
+ * Deletes a package.
  */
 async function deletePackage(pkgId) {
-    MOCK_PACKAGES = MOCK_PACKAGES.filter(p => p.id !== pkgId);
+    const { error } = await supabase
+        .from('packages')
+        .delete()
+        .eq('id', pkgId);
+        
+    if (error) {
+        console.error('Error deleting package:', error);
+        return { success: false };
+    }
     renderPackageEditor();
+    return { success: true };
 }
 
 /**
- * Simulates updating the platform settings (WhatsApp link).
+ * Fetches the current platform settings.
  */
-async function updateSettings(newSettings) {
-    MOCK_SETTINGS.whatsAppLink = newSettings.whatsAppLink;
-    renderSettingsEditor();
+async function fetchSettings() {
+    const { data, error } = await supabase
+        .from('settings')
+        .select('whats_app_link')
+        .limit(1)
+        .single();
+    
+    if (error) {
+        console.error('Error fetching settings:', error);
+        return { whatsAppLink: '#' }; 
+    }
+    return { whatsAppLink: data.whats_app_link };
 }
 
-// --- BULK PROCESSING TOOLS (EXISTING) ---
+/**
+ * Updates the platform settings (WhatsApp link).
+ */
+async function updateSettings(newSettings) {
+    const { error } = await supabase
+        .from('settings')
+        // We know the ID of the single settings row is 1
+        .update({ whats_app_link: newSettings.whatsAppLink }) 
+        .eq('id', 1); 
+
+    if (error) {
+        console.error('Error updating settings:', error);
+        return { success: false };
+    }
+    renderSettingsEditor();
+    return { success: true };
+}
+
+// --- BULK PROCESSING TOOLS (REMAINS SAME LOGIC, BUT USES LIVE DATA) ---
+
+let currentOrders = []; // Cached array for filtered orders
 
 /**
  * Gets the IDs of all checked orders.
@@ -120,7 +200,8 @@ function getSelectedOrderIds() {
  */
 function getSelectedOrderObjects() {
     const selectedIds = getSelectedOrderIds();
-    return MOCK_ORDERS.filter(order => selectedIds.includes(order.id));
+    // Use the cached currentOrders array
+    return currentOrders.filter(order => selectedIds.includes(order.id)); 
 }
 
 /**
@@ -147,7 +228,8 @@ async function filterOrders() {
     } else {
         filteredOrders = allOrders.filter(order => order.status === statusFilter);
     }
-
+    
+    currentOrders = filteredOrders; // Cache the filtered result
     renderOrderTable(filteredOrders);
 }
 
@@ -172,11 +254,14 @@ async function handleBulkStatusChange() {
         return;
     }
 
+    let successCount = 0;
     for (const id of selectedOrders) {
-        await updateOrderStatus(id, newStatus); 
+        const result = await updateOrderStatus(id, newStatus); 
+        if(result.success) successCount++;
     }
 
-    alert(`${selectedOrders.length} orders successfully updated to ${newStatus}.`);
+    alert(`${successCount} orders successfully updated to ${newStatus}.`);
+    // Re-render the table after the batch update is complete
     filterOrders();
 }
 
@@ -192,6 +277,7 @@ function exportOrdersToCSV() {
         return;
     }
 
+    // Define the CSV header: Customer Phone and Data Value (GB) are needed
     let csvContent = "CustomerPhone,DataValueGB\r\n";
 
     selectedOrders.forEach(order => {
@@ -213,7 +299,7 @@ function exportOrdersToCSV() {
     alert(`Exported ${selectedOrders.length} orders to CSV for bulk loading.`);
 }
 
-// --- CONFIGURATION RENDERING AND LOGIC (NEW) ---
+// --- CONFIGURATION RENDERING AND LOGIC (UPDATED DB CALLS) ---
 
 /**
  * Renders the package list for CRUD.
@@ -233,8 +319,8 @@ async function renderPackageEditor() {
                 <td>GHS ${pkg.priceGHS.toFixed(2)}</td>
                 <td><span style="color: ${pkg.isEnabled ? 'green' : 'red'};">${pkg.isEnabled ? 'Active' : 'Disabled'}</span></td>
                 <td>
-                    <button onclick="editPackage('${pkg.id}')">Edit</button>
-                    <button onclick="handleDeletePackage('${pkg.id}')" style="background-color: #dc3545; color: white;">Delete</button>
+                    <button onclick="editPackage('${pkg.id}')" class="btn-primary" style="padding: 5px 10px;">Edit</button>
+                    <button onclick="handleDeletePackage('${pkg.id}')" style="background-color: #dc3545; color: white; padding: 5px 10px;">Delete</button>
                 </td>
             </tr>
         `;
@@ -246,17 +332,24 @@ async function renderPackageEditor() {
  * Pre-fills the modal form for editing an existing package.
  */
 function editPackage(pkgId) {
-    const pkg = MOCK_PACKAGES.find(p => p.id === pkgId);
-    if (!pkg) return;
+    // Note: This relies on fetchAllPackages having been run recently to populate the table.
+    // In a production app, we would fetch the single package here for accuracy.
+    const pkg = currentOrders.find(p => p.id === pkgId) || fetchAllPackages().then(pkgs => pkgs.find(p => p.id === pkgId));
+    
+    // To simplify the mockup, we'll re-fetch everything and find the match
+    fetchAllPackages().then(packages => {
+        const pkg = packages.find(p => p.id === pkgId);
+        if (!pkg) return;
+        
+        document.getElementById('package-modal-title').textContent = 'Edit Data Package';
+        document.getElementById('pkg-id').value = pkg.id;
+        document.getElementById('pkg-name').value = pkg.packageName;
+        document.getElementById('pkg-data').value = pkg.dataValueGB;
+        document.getElementById('pkg-price').value = pkg.priceGHS;
+        document.getElementById('pkg-enabled').checked = pkg.isEnabled;
 
-    document.getElementById('package-modal-title').textContent = 'Edit Data Package';
-    document.getElementById('pkg-id').value = pkg.id;
-    document.getElementById('pkg-name').value = pkg.packageName;
-    document.getElementById('pkg-data').value = pkg.dataValueGB;
-    document.getElementById('pkg-price').value = pkg.priceGHS;
-    document.getElementById('pkg-enabled').checked = pkg.isEnabled;
-
-    document.getElementById('package-editor-modal').style.display = 'flex';
+        document.getElementById('package-editor-modal').style.display = 'flex';
+    });
 }
 
 /**
@@ -287,9 +380,13 @@ async function handlePackageFormSubmit(event) {
         isEnabled: document.getElementById('pkg-enabled').checked,
     };
 
-    await savePackage(pkg);
-    closePackageModal();
-    alert(`Package ${pkg.id ? 'updated' : 'created'} successfully.`);
+    const result = await savePackage(pkg);
+    if(result.success) {
+        closePackageModal();
+        alert(`Package ${pkg.id ? 'updated' : 'created'} successfully.`);
+    } else {
+        alert('Failed to save package.');
+    }
 }
 
 /**
@@ -313,10 +410,11 @@ function closePackageModal() {
  * Initializes and displays the current settings.
  */
 async function renderSettingsEditor() {
-    const settings = MOCK_SETTINGS; 
-    if (settings) {
-        const linkInput = document.getElementById('whats-app-link-input');
-        if(linkInput) linkInput.value = settings.whatsAppLink;
+    const settings = await fetchSettings(); 
+    const linkInput = document.getElementById('whats-app-link-input');
+    
+    if (settings && linkInput) {
+        linkInput.value = settings.whatsAppLink;
     }
 }
 
@@ -330,12 +428,16 @@ async function handleSettingsFormSubmit(event) {
         whatsAppLink: document.getElementById('whats-app-link-input').value.trim(),
     };
     
-    await updateSettings(newSettings);
-    alert("Platform settings (WhatsApp link) updated successfully.");
+    const result = await updateSettings(newSettings);
+    if(result.success) {
+        alert("Platform settings (WhatsApp link) updated successfully.");
+    } else {
+        alert("Failed to update settings.");
+    }
 }
 
 
-// --- Admin Dashboard Logic (MODIFIED) ---
+// --- Admin Dashboard Logic (UPDATED AUTHENTICATION) ---
 
 /**
  * Handles the Login Barrier check.
@@ -344,9 +446,11 @@ async function handleLogin(event) {
     event.preventDefault();
     const tokenInput = document.getElementById('admin-token-input');
     const tokenAttempt = tokenInput.value.trim();
-    const storedToken = await fetchAdminToken();
+    
+    // Fetch the token from Supabase instead of mock data
+    const storedToken = await fetchAdminToken(); 
 
-    if (tokenAttempt === storedToken) {
+    if (storedToken && tokenAttempt === storedToken) {
         sessionStorage.setItem('admin_session_valid', 'true');
         window.location.hash = '#dashboard';
         renderDashboard();
@@ -357,7 +461,7 @@ async function handleLogin(event) {
 }
 
 /**
- * Renders the orders into the management table. (Existing bulk logic)
+ * Renders the orders into the management table. (Existing bulk logic, now uses live data)
  */
 async function renderOrderTable(orders) {
     const tableBody = document.getElementById('orders-table-body');
@@ -439,7 +543,7 @@ async function handleStatusChange(selectElement) {
 }
 
 /**
- * Renders the correct view (Login or Dashboard) based on session status. (MODIFIED)
+ * Renders the correct view (Login or Dashboard) based on session status.
  */
 async function renderDashboard() {
     const isAdminValid = sessionStorage.getItem('admin_session_valid') === 'true';
@@ -451,13 +555,9 @@ async function renderDashboard() {
             loginView.style.display = 'none';
             dashboardView.style.display = 'block';
             
-            // Render orders
             filterOrders(); 
-            
-            // --- NEW: Render Configuration Editors ---
             renderPackageEditor();
             renderSettingsEditor();
-            // --- END NEW ---
         } else {
             loginView.style.display = 'block';
             dashboardView.style.display = 'none';
@@ -489,13 +589,11 @@ document.addEventListener('DOMContentLoaded', () => {
         filterSelect.addEventListener('change', filterOrders);
     }
 
-    // Attach form submit handler for package modal (NEW)
     const packageForm = document.getElementById('package-form');
     if (packageForm) {
         packageForm.addEventListener('submit', handlePackageFormSubmit);
     }
 
-    // Attach form submit handler for settings (NEW)
     const settingsForm = document.getElementById('settings-form');
     if (settingsForm) {
         settingsForm.addEventListener('submit', handleSettingsFormSubmit);
