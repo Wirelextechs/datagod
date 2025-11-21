@@ -80,12 +80,13 @@ async function createOrderInDB(orderData) {
             package_details: orderData.packageDetails,
             status: orderData.status,
             created_at: orderData.createdAt,
+            updated_at: orderData.createdAt,
         }])
         .select('short_id'); 
 
     if (error) {
-        console.error('Error submitting order:', error);
-        return { success: false };
+        console.error('Error submitting order:', error.message || JSON.stringify(error));
+        return { success: false, error: error };
     }
     return { success: true, shortId: data[0].short_id }; 
 }
@@ -285,6 +286,7 @@ async function handleOrderSubmission(event) {
 
     try {
         const result = await createOrderInDB(orderData);
+        console.log('Order creation result:', result);
         
         if (result.success) {
             // Initialize Paystack popup
