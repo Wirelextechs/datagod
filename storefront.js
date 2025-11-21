@@ -373,13 +373,11 @@ function initiatePaystackPayment(email, amount, ref, packageName) {
         ref: ref,
         currency: 'GHS',
         onClose: function() {
-            console.log('Payment modal closed, waiting a moment before verification...');
-            // Wait 2 seconds then verify (gives time for payment to process)
-            setTimeout(() => verifyPaymentWithServer(ref, packageName), 2000);
+            console.log('Payment modal closed, starting verification polling...');
+            startPaymentVerificationPolling(ref, packageName);
         },
         onSuccess: async function(response) {
             console.log('✓ Payment successful callback:', response);
-            // Verify with server immediately
             verifyPaymentWithServer(ref, packageName);
         }
     });
@@ -388,6 +386,9 @@ function initiatePaystackPayment(email, amount, ref, packageName) {
         console.log('Opening Paystack payment...');
         handler.openIframe();
         
+        // Start polling immediately as backup (callbacks might not fire in iframe)
+        setTimeout(() => startPaymentVerificationPolling(ref, packageName), 3000);
+        
     } catch (error) {
         console.error('Error opening Paystack:', error);
         alert('Error opening payment. Please try again.');
@@ -395,11 +396,55 @@ function initiatePaystackPayment(email, amount, ref, packageName) {
 }
 
 /**
+ * Polls for payment verification every 2 seconds
+ */
+function startPaymentVerificationPolling(ref, packageName) {
+    if (window.paymentPollingInterval) {
+        clearInterval(window.paymentPollingInterval);
+    }
+    
+    console.log(`Starting payment verification polling for reference: ${ref}`);
+    let pollCount = 0;
+    const maxPolls = 30; // Poll for 60 seconds max
+    
+    window.paymentPollingInterval = setInterval(async () => {
+        pollCount++;
+        console.log(`[POLL ${pollCount}/${maxPolls}] Checking payment status...`);
+        
+        try {
+            // Check if order has been updated to PAID status
+            const { data, error } = await supabaseClient
+                .from('orders')
+                .select('status')
+                .eq('short_id', ref)
+                .single();
+            
+            if (data && data.status === ORDER_STATUS.PAID) {
+                console.log(`✓ Order ${ref} marked as PAID! Showing success screen.`);
+                clearInterval(window.paymentPollingInterval);
+                showSuccessScreen(ref, packageName);
+                return;
+            } else if (data) {
+                console.log(`Order status still ${data.status}, continuing poll...`);
+            }
+        } catch (err) {
+            console.log(`Poll check error: ${err.message}`);
+        }
+        
+        // Stop after max polls
+        if (pollCount >= maxPolls) {
+            clearInterval(window.paymentPollingInterval);
+            console.log('Polling timeout - payment may still have been processed. Check email receipt or contact support.');
+        }
+    }, 2000); // Poll every 2 seconds
+}
+
+/**
  * Verifies payment with backend server and updates order status
  */
 async function verifyPaymentWithServer(ref, packageName) {
     try {
-        console.log('Verifying payment with server for ref:', ref);
+        console.log('[VERIFY-CALL] Calling verification endpoint for ref:', ref);
         const response = await fetch('/api/verify-payment', {
             method: 'POST',
             headers: {
@@ -408,22 +453,21 @@ async function verifyPaymentWithServer(ref, packageName) {
             body: JSON.stringify({ reference: ref })
         });
         
-        console.log('Verify response status:', response.status);
+        console.log('[VERIFY-CALL] Response status:', response.status);
         const result = await response.json();
-        console.log('Verify response result:', result);
+        console.log('[VERIFY-CALL] Response result:', result);
         
         if (result.success) {
             console.log('✓ Payment verified by server, showing success screen');
+            if (window.paymentPollingInterval) {
+                clearInterval(window.paymentPollingInterval);
+            }
             showSuccessScreen(ref, packageName);
         } else {
             console.log('Payment verification failed:', result.error);
-            // Don't show alert for payment verification failures - just log it
-            // User can check their email for receipt or use status checker
         }
     } catch (error) {
-        console.error('Error verifying payment:', error);
-        // Network error, but payment might still have gone through
-        // User can check email for receipt or use status checker
+        console.error('[VERIFY-CALL] Error verifying payment:', error);
     }
 }
 
