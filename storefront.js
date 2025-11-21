@@ -327,9 +327,6 @@ async function handleOrderSubmission(event) {
             // Close modal first
             closeOrderModal();
             
-            // Show message about receipt
-            alert(`Order created! Paystack will send a receipt to ${email}`);
-            
             // Initiate Paystack payment - Paystack will send receipt with reference (tracking ID)
             initiatePaystackPayment(email, amount, shortId, selectedPackage.packageName);
         } else {
