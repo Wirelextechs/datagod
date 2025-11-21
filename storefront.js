@@ -427,7 +427,7 @@ async function createOrderAfterPayment(paystackRef) {
     try {
         // Prevent duplicate order creation
         if (window.orderCreatedForRef === paystackRef) {
-            console.log('[PAYSTACK] Order already created for this reference, skipping duplicate');
+            console.log('[ORDER-CREATE] Order already created for this reference, skipping duplicate');
             return;
         }
         window.orderCreatedForRef = paystackRef;
@@ -438,14 +438,19 @@ async function createOrderAfterPayment(paystackRef) {
         }
         
         if (!window.pendingOrderData) {
-            console.error('[PAYSTACK] No pending order data found');
+            console.error('[ORDER-CREATE] No pending order data found');
             return;
         }
 
         const orderData = window.pendingOrderData;
         const shortId = generateShortId();
 
-        console.log('[PAYSTACK] Creating order with shortId:', shortId);
+        console.log('[ORDER-CREATE] Creating order with shortId:', shortId, 'for package:', orderData.packageName);
+        console.log('[ORDER-CREATE] Order data:', {
+            phone: orderData.customerPhone,
+            gb: orderData.packageGB,
+            amount: orderData.amountPaid
+        });
 
         const result = await createOrderInDB({
             shortId: shortId,
@@ -457,12 +462,14 @@ async function createOrderAfterPayment(paystackRef) {
             createdAt: new Date().toISOString(),
         });
 
+        console.log('[ORDER-CREATE] Database response:', result);
+
         if (result.success) {
-            console.log('[PAYSTACK] ✓ Order created successfully with id:', shortId);
+            console.log('[ORDER-CREATE] ✓ Order created successfully with id:', shortId);
             showSuccessScreen(shortId, orderData.packageName);
         } else {
-            console.error('[PAYSTACK] Order creation failed:', result.error);
-            alert('Order could not be saved. Please contact support with reference: ' + paystackRef);
+            console.error('[ORDER-CREATE] Order creation failed:', result.error);
+            alert('Order could not be saved. Please try again.\nError: ' + JSON.stringify(result.error));
             window.orderCreatedForRef = null; // Reset on error
         }
 
@@ -470,10 +477,27 @@ async function createOrderAfterPayment(paystackRef) {
         window.pendingOrderData = null;
 
     } catch (error) {
-        console.error('[PAYSTACK] Error creating order after payment:', error);
+        console.error('[ORDER-CREATE] Error creating order after payment:', error);
         alert('Error saving order: ' + error.message);
         window.orderCreatedForRef = null; // Reset on error
     }
+}
+
+/**
+ * Manual trigger for testing - creates a test order
+ */
+async function testCreateOrder() {
+    window.pendingOrderData = {
+        email: 'test@example.com',
+        customerPhone: '0201234567',
+        packageGB: 1,
+        packagePrice: 4.80,
+        packageName: 'Test Package',
+        amountPaid: 4.87
+    };
+    
+    console.log('[TEST] Manually creating test order...');
+    await createOrderAfterPayment('test_ref_' + Date.now());
 }
 
 
