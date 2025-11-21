@@ -409,10 +409,28 @@ function startPaymentVerificationPolling(ref, packageName) {
     
     window.paymentPollingInterval = setInterval(async () => {
         pollCount++;
-        console.log(`[POLL ${pollCount}/${maxPolls}] Checking payment status...`);
+        console.log(`[POLL ${pollCount}/${maxPolls}] Verifying payment with backend...`);
         
         try {
-            // Check if order has been updated to PAID status
+            // Call backend to verify with Paystack
+            console.log(`[POLL ${pollCount}] Calling backend verification endpoint...`);
+            const verifyResponse = await fetch('/api/verify-payment', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ reference: ref })
+            });
+            
+            const verifyResult = await verifyResponse.json();
+            console.log(`[POLL ${pollCount}] Backend response:`, verifyResult);
+            
+            if (verifyResult.success) {
+                console.log(`✓ Payment verified! Order ${ref} updated to PAID`);
+                clearInterval(window.paymentPollingInterval);
+                showSuccessScreen(ref, packageName);
+                return;
+            }
+            
+            // Also check Supabase directly as backup
             const { data, error } = await supabaseClient
                 .from('orders')
                 .select('status')
@@ -425,10 +443,10 @@ function startPaymentVerificationPolling(ref, packageName) {
                 showSuccessScreen(ref, packageName);
                 return;
             } else if (data) {
-                console.log(`Order status still ${data.status}, continuing poll...`);
+                console.log(`[POLL ${pollCount}] Order status: ${data.status}`);
             }
         } catch (err) {
-            console.log(`Poll check error: ${err.message}`);
+            console.log(`[POLL ${pollCount}] Error: ${err.message}`);
         }
         
         // Stop after max polls
