@@ -313,6 +313,10 @@ function initiatePaystackPayment(email, amount, ref, packageName) {
         return;
     }
 
+    // Store payment state for polling
+    window.currentPaymentRef = ref;
+    window.currentPackageName = packageName;
+
     const handler = PaystackPop.setup({
         key: PAYSTACK_PUBLIC_KEY,
         email: email,
@@ -320,13 +324,11 @@ function initiatePaystackPayment(email, amount, ref, packageName) {
         ref: ref,
         currency: 'GHS',
         onClose: function() {
-            console.log('Payment modal closed.');
-            // Show success screen anyway - order was created in DB
+            console.log('Payment modal closed callback fired');
             showSuccessScreen(ref, packageName);
         },
         onSuccess: function(response) {
-            console.log('Payment successful:', response);
-            // Show success screen with tracking ID
+            console.log('Payment successful callback fired:', response);
             showSuccessScreen(ref, packageName);
         }
     });
@@ -334,10 +336,37 @@ function initiatePaystackPayment(email, amount, ref, packageName) {
     try {
         console.log('Opening Paystack payment...');
         handler.openIframe();
+        
+        // Poll to detect when Paystack modal is closed (fallback for callback failure)
+        let pollCount = 0;
+        const pollInterval = setInterval(() => {
+            pollCount++;
+            
+            // Check if Paystack iframe is still present
+            const paystackFrame = document.querySelector('iframe[src*="paystack"]');
+            
+            if (!paystackFrame && pollCount > 5) {
+                console.log('Paystack modal detected as closed via polling');
+                clearInterval(pollInterval);
+                setTimeout(() => {
+                    showSuccessScreen(ref, packageName);
+                }, 500);
+            }
+            
+            // Stop polling after 2 minutes
+            if (pollCount > 120) {
+                clearInterval(pollInterval);
+                console.log('Polling timeout reached, showing success screen');
+                showSuccessScreen(ref, packageName);
+            }
+        }, 1000);
+        
     } catch (error) {
         console.error('Error opening Paystack:', error);
         // Fallback: show success screen since order exists in DB
-        showSuccessScreen(ref, packageName);
+        setTimeout(() => {
+            showSuccessScreen(ref, packageName);
+        }, 500);
     }
 }
 
