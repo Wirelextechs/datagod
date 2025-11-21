@@ -66,14 +66,14 @@ class NoCacheHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
             paystack_response = json.loads(response.read().decode('utf-8'))
             
             if paystack_response.get('status') and paystack_response.get('data', {}).get('status') == 'success':
-                # Payment verified! Update order status to PROCESSING in Supabase
+                # Payment verified! Update order status to PAID in Supabase
                 update_url = f'{SUPABASE_URL}/rest/v1/orders?short_id=eq.{reference}'
                 update_headers = {
                     'Authorization': f'Bearer {SUPABASE_ANON_KEY}',
                     'Content-Type': 'application/json',
                     'Prefer': 'return=representation'
                 }
-                update_body = json.dumps({'status': 'PROCESSING'}).encode('utf-8')
+                update_body = json.dumps({'status': 'PAID'}).encode('utf-8')
                 
                 update_req = urllib.request.Request(update_url, data=update_body, headers=update_headers, method='PATCH')
                 update_response = urllib.request.urlopen(update_req, timeout=10)
@@ -82,7 +82,7 @@ class NoCacheHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
                 self.end_headers()
                 self.wfile.write(json.dumps({
                     'success': True,
-                    'message': 'Payment verified and order updated to PROCESSING',
+                    'message': 'Payment verified and order updated to PAID',
                     'reference': reference
                 }).encode())
             else:

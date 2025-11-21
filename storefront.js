@@ -308,14 +308,14 @@ async function handleOrderSubmission(event) {
     const shortId = generateShortId();
     const amount = Math.round(selectedPackage.priceGHS * 100); // Convert to pesewas
 
-    // First, create a FAILED order in Supabase (will be updated to PROCESSING after payment)
+    // First, create a FAILED order in Supabase (will be updated to PAID after payment)
     const orderData = {
         shortId: shortId,
         customerPhone: customerPhone,
         packageGB: selectedPackage.dataValueGB,
         packagePrice: selectedPackage.priceGHS,
         packageDetails: selectedPackage.packageName,
-        status: ORDER_STATUS.FAILED, // Will be updated to PROCESSING after successful payment
+        status: ORDER_STATUS.FAILED, // Will be updated to PAID after successful payment
         createdAt: new Date().toISOString(),
     };
 
