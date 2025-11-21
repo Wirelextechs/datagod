@@ -11,7 +11,7 @@ const supabaseClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 const PAYSTACK_PUBLIC_KEY = 'pk_test_af33df7aad299f46565a2f5fc2adb221e22122d6';
 
 // Enum for clear, controlled status values (Matches database status)
-const ORDER_STATUS = { PAID: 'PAID', PROCESSING: 'PROCESSING', FULFILLED: 'FULFILLED', CANCELLED: 'CANCELLED' };
+const ORDER_STATUS = { FAILED: 'FAILED', PROCESSING: 'PROCESSING', PAID: 'PAID', FULFILLED: 'FULFILLED', CANCELLED: 'CANCELLED' };
 
 // --- Utility Functions ---
 
@@ -308,14 +308,14 @@ async function handleOrderSubmission(event) {
     const shortId = generateShortId();
     const amount = Math.round(selectedPackage.priceGHS * 100); // Convert to pesewas
 
-    // First, create a PROCESSING order in Supabase (will be updated to PAID after payment)
+    // First, create a FAILED order in Supabase (will be updated to PROCESSING after payment)
     const orderData = {
         shortId: shortId,
         customerPhone: customerPhone,
         packageGB: selectedPackage.dataValueGB,
         packagePrice: selectedPackage.priceGHS,
         packageDetails: selectedPackage.packageName,
-        status: ORDER_STATUS.PROCESSING, // Will be updated to PAID after successful payment
+        status: ORDER_STATUS.FAILED, // Will be updated to PROCESSING after successful payment
         createdAt: new Date().toISOString(),
     };
 
