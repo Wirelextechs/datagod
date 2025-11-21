@@ -169,7 +169,8 @@ class NoCacheHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
             verification_url = f'https://api.paystack.co/transaction/verify/{reference}'
             headers = {
                 'Authorization': f'Bearer {PAYSTACK_SECRET_KEY}',
-                'Content-Type': 'application/json'
+                'Content-Type': 'application/json',
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
             }
             
             print(f'[VERIFY] Using URL: {verification_url}')
@@ -271,7 +272,8 @@ class NoCacheHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
             paystack_url = 'https://api.paystack.co/transaction/initialize'
             paystack_headers = {
                 'Authorization': f'Bearer {PAYSTACK_SECRET_KEY}',
-                'Content-Type': 'application/json'
+                'Content-Type': 'application/json',
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
             }
             paystack_body = json.dumps({
                 'email': email,
