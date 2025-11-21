@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 import http.server
 import socketserver
-from functools import partial
 
 class NoCacheHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
     def end_headers(self):
@@ -10,9 +9,17 @@ class NoCacheHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
         self.send_header('Expires', '0')
         super().end_headers()
 
+class ReusableHTTPServer(socketserver.TCPServer):
+    allow_reuse_address = True
+
 PORT = 5000
 Handler = NoCacheHTTPRequestHandler
 
-with socketserver.TCPServer(("0.0.0.0", PORT), Handler) as httpd:
-    print(f"Server running at http://0.0.0.0:{PORT}/")
-    httpd.serve_forever()
+try:
+    with ReusableHTTPServer(("0.0.0.0", PORT), Handler) as httpd:
+        print(f"Server running at http://0.0.0.0:{PORT}/")
+        httpd.serve_forever()
+except OSError as e:
+    print(f"Error: {e}")
+    print("Port 5000 is still in use. Please try again in a moment.")
+    exit(1)
