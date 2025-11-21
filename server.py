@@ -12,6 +12,7 @@ from urllib.parse import urlparse
 # Supabase config
 SUPABASE_URL = 'https://sjvxlvsmjwpfxlkjjvod.supabase.co'
 SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNqdnhsdnNtandwZnhsa2pqdm9kIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjM0MzM1NTksImV4cCI6MjA3OTAwOTU1OX0.VmrDs5I6zn9wY1VUAsk0f1IzcvjLI7oe_BT5o1CT8J0'
+SUPABASE_SERVICE_ROLE_KEY = os.environ.get('SUPABASE_SERVICE_ROLE_KEY')
 
 # Paystack secret key (from environment)
 PAYSTACK_SECRET_KEY = os.environ.get('PAYSTACK_SECRET_KEY')
@@ -21,6 +22,11 @@ if not PAYSTACK_SECRET_KEY:
     print('[ERROR] PAYSTACK_SECRET_KEY is not set in environment variables!')
 else:
     print(f'[STARTUP] PAYSTACK_SECRET_KEY loaded (length: {len(PAYSTACK_SECRET_KEY)})')
+
+if not SUPABASE_SERVICE_ROLE_KEY:
+    print('[ERROR] SUPABASE_SERVICE_ROLE_KEY is not set!')
+else:
+    print(f'[STARTUP] SUPABASE_SERVICE_ROLE_KEY loaded (length: {len(SUPABASE_SERVICE_ROLE_KEY)})')
 
 class NoCacheHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
     def end_headers(self):
@@ -96,10 +102,10 @@ class NoCacheHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
                 reference = data.get('reference')
                 print(f'[WEBHOOK] Processing successful payment for reference: {reference}')
                 
-                # Update order status from CANCELLED to PAID
+                # Update order status from CANCELLED to PAID using service role key
                 update_url = f'{SUPABASE_URL}/rest/v1/orders?short_id=eq.{reference}'
                 update_headers = {
-                    'Authorization': f'Bearer {SUPABASE_ANON_KEY}',
+                    'Authorization': f'Bearer {SUPABASE_SERVICE_ROLE_KEY}',
                     'Content-Type': 'application/json',
                     'Prefer': 'return=representation'
                 }
@@ -175,10 +181,10 @@ class NoCacheHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
             if paystack_response.get('status') and paystack_response.get('data', {}).get('status') == 'success':
                 print(f'[VERIFY] Payment verified! Updating order {reference} to PAID')
                 
-                # Payment verified! Update order status to PAID in Supabase
+                # Payment verified! Update order status to PAID in Supabase using service role key
                 update_url = f'{SUPABASE_URL}/rest/v1/orders?short_id=eq.{reference}'
                 update_headers = {
-                    'Authorization': f'Bearer {SUPABASE_ANON_KEY}',
+                    'Authorization': f'Bearer {SUPABASE_SERVICE_ROLE_KEY}',
                     'Content-Type': 'application/json',
                     'Prefer': 'return=representation'
                 }
