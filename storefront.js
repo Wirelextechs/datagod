@@ -80,7 +80,6 @@ async function createOrderInDB(orderData) {
             package_details: orderData.packageDetails,
             status: orderData.status,
             created_at: orderData.createdAt,
-            updated_at: orderData.updatedAt,
         }])
         .select('short_id'); 
 
@@ -280,9 +279,8 @@ async function handleOrderSubmission(event) {
         packageGB: selectedPackage.dataValueGB,
         packagePrice: selectedPackage.priceGHS,
         packageDetails: selectedPackage.packageName,
-        status: 'PENDING', // Payment pending
+        status: ORDER_STATUS.PAID, // Marked as PAID after Paystack redirects
         createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
     };
 
     try {
