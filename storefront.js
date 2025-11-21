@@ -426,8 +426,14 @@ async function proceedToPaystack(reference, email, amount) {
         if (data.success && data.authorization_url) {
             console.log('[PAYSTACK] ✓ Payment initialized. Opening checkout in new tab...');
             
-            // Open Paystack checkout in NEW BROWSER TAB (no iframe = no blocking!)
-            window.open(data.authorization_url, '_blank');
+            // Create and click a link for mobile compatibility (bypasses popup blockers)
+            const paymentLink = document.createElement('a');
+            paymentLink.href = data.authorization_url;
+            paymentLink.target = '_blank';
+            paymentLink.rel = 'noopener noreferrer';
+            document.body.appendChild(paymentLink);
+            paymentLink.click();
+            document.body.removeChild(paymentLink);
             
             alert('Payment window opened in a new tab. Complete your payment there, then return here and click "I Have Paid - Verify Now".');
         } else {

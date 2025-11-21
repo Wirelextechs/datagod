@@ -149,6 +149,10 @@ The project uses a Python HTTP server configured to:
   - Completely eliminates ERR_BLOCKED_BY_RESPONSE errors
   - Improved UX: Order confirmation screen shows immediately with tracking ID
   - Users click "Proceed to Payment" → Opens Paystack in new tab → Complete payment → Return and click "I Have Paid"
+- **✅ MOBILE FIX: Bypasses popup blockers**:
+  - Changed from `window.open()` to programmatic link click
+  - Mobile browsers allow user-initiated link clicks but block JavaScript popups
+  - Payment now works reliably on mobile devices (iOS/Android)
 
 ## User Preferences
 - None specified yet
