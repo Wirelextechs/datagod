@@ -535,9 +535,14 @@ async function handleStatusChange(selectElement) {
     const newStatus = selectElement.value;
     
     if (confirm(`Are you sure you want to change order ${orderId} status to ${newStatus}?`)) {
-        await updateOrderStatus(orderId, newStatus);
-        filterOrders();
-        alert(`Status for ${orderId} updated to ${newStatus}.`);
+        const result = await updateOrderStatus(orderId, newStatus);
+        if (result.success) {
+            // Refetch and display updated orders
+            await filterOrders();
+            alert(`Status for ${orderId} updated to ${newStatus}.`);
+        } else {
+            alert('Failed to update order status. Please try again.');
+        }
     } else {
         renderDashboard(); 
     }
