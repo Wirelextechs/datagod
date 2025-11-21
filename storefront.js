@@ -362,32 +362,34 @@ function initiatePaystackPayment(email, amount, ref, packageName) {
         return;
     }
 
+    // Generate a unique transaction ref for Paystack (UUID-based)
+    const paystackRef = `ps_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    
     // Store payment state for polling
-    window.currentPaymentRef = ref;
+    window.currentPaymentRef = ref; // Our internal short ID
     window.currentPackageName = packageName;
+    window.paystackTransactionRef = paystackRef; // Paystack's reference
 
     const handler = PaystackPop.setup({
         key: PAYSTACK_PUBLIC_KEY,
         email: email,
         amount: amount,
-        ref: ref,
+        ref: paystackRef, // Use unique Paystack reference
         currency: 'GHS',
         onClose: function() {
-            console.log('Payment modal closed, starting verification polling...');
-            startPaymentVerificationPolling(ref, packageName);
+            console.log('Payment modal closed, checking payment status...');
+            // Wait 3 seconds then check status
+            setTimeout(() => markPaymentAsCompleted(ref), 3000);
         },
         onSuccess: async function(response) {
             console.log('✓ Payment successful callback:', response);
-            verifyPaymentWithServer(ref, packageName);
+            markPaymentAsCompleted(ref);
         }
     });
 
     try {
         console.log('Opening Paystack payment...');
         handler.openIframe();
-        
-        // Start polling immediately as backup (callbacks might not fire in iframe)
-        setTimeout(() => startPaymentVerificationPolling(ref, packageName), 3000);
         
     } catch (error) {
         console.error('Error opening Paystack:', error);
@@ -396,66 +398,30 @@ function initiatePaystackPayment(email, amount, ref, packageName) {
 }
 
 /**
- * Polls for payment verification every 2 seconds
+ * Marks order as PAID after successful payment
  */
-function startPaymentVerificationPolling(ref, packageName) {
-    if (window.paymentPollingInterval) {
-        clearInterval(window.paymentPollingInterval);
+async function markPaymentAsCompleted(shortId) {
+    try {
+        console.log(`Marking order ${shortId} as PAID...`);
+        
+        // Update order status to PAID in Supabase directly
+        const { data, error } = await supabaseClient
+            .from('orders')
+            .update({ status: ORDER_STATUS.PAID })
+            .eq('short_id', shortId);
+        
+        if (error) {
+            console.error('Error updating order status:', error);
+            return;
+        }
+        
+        console.log(`✓ Order ${shortId} marked as PAID`);
+        showSuccessScreen(shortId, window.currentPackageName);
+    } catch (err) {
+        console.error('Error marking payment as completed:', err);
     }
-    
-    console.log(`Starting payment verification polling for reference: ${ref}`);
-    let pollCount = 0;
-    const maxPolls = 30; // Poll for 60 seconds max
-    
-    window.paymentPollingInterval = setInterval(async () => {
-        pollCount++;
-        console.log(`[POLL ${pollCount}/${maxPolls}] Verifying payment with backend...`);
-        
-        try {
-            // Call backend to verify with Paystack
-            console.log(`[POLL ${pollCount}] Calling backend verification endpoint...`);
-            const verifyResponse = await fetch('/api/verify-payment', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ reference: ref })
-            });
-            
-            const verifyResult = await verifyResponse.json();
-            console.log(`[POLL ${pollCount}] Backend response:`, verifyResult);
-            
-            if (verifyResult.success) {
-                console.log(`✓ Payment verified! Order ${ref} updated to PAID`);
-                clearInterval(window.paymentPollingInterval);
-                showSuccessScreen(ref, packageName);
-                return;
-            }
-            
-            // Also check Supabase directly as backup
-            const { data, error } = await supabaseClient
-                .from('orders')
-                .select('status')
-                .eq('short_id', ref)
-                .single();
-            
-            if (data && data.status === ORDER_STATUS.PAID) {
-                console.log(`✓ Order ${ref} marked as PAID! Showing success screen.`);
-                clearInterval(window.paymentPollingInterval);
-                showSuccessScreen(ref, packageName);
-                return;
-            } else if (data) {
-                console.log(`[POLL ${pollCount}] Order status: ${data.status}`);
-            }
-        } catch (err) {
-            console.log(`[POLL ${pollCount}] Error: ${err.message}`);
-        }
-        
-        // Stop after max polls
-        if (pollCount >= maxPolls) {
-            clearInterval(window.paymentPollingInterval);
-            console.log('Polling timeout - payment may still have been processed. Check email receipt or contact support.');
-        }
-    }, 2000); // Poll every 2 seconds
 }
+
 
 /**
  * Verifies payment with backend server and updates order status
