@@ -115,6 +115,9 @@ The project uses a Python HTTP server configured to:
 - Integrated Paystack payment gateway (pk_test_af33df7aad299f46565a2f5fc2adb221e22122d6)
 - Updated storefront to use real Paystack payment popup instead of mock payment
 - Added Paystack SDK and integrated payment flow with order creation
+- **Fixed payment verification**: Orders now start with PROCESSING status and update to PAID only after successful payment
+- **Implemented payment verification**: Success screen only shows after confirmed payment, not on cancellation
+- **Added fallback verification**: 10-second check verifies payment status before showing tracking ID
 
 ## User Preferences
 - None specified yet

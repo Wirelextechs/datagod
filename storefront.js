@@ -114,6 +114,40 @@ async function findOrderByShortId(shortId) {
     return null;
 }
 
+/**
+ * Updates an order's status in the database.
+ */
+async function updateOrderStatus(shortId, newStatus) {
+    const { data, error } = await supabaseClient
+        .from('orders')
+        .update({ status: newStatus })
+        .eq('short_id', shortId)
+        .select();
+
+    if (error) {
+        console.error('Error updating order status:', error);
+        return { success: false, error: error };
+    }
+    return { success: true, data: data };
+}
+
+/**
+ * Gets an order's current status from the database.
+ */
+async function getOrderStatus(shortId) {
+    const { data, error } = await supabaseClient
+        .from('orders')
+        .select('status')
+        .eq('short_id', shortId)
+        .single();
+
+    if (error) {
+        console.error('Error fetching order status:', error);
+        return null;
+    }
+    return data;
+}
+
 // --- Status Checker Logic (NO CHANGE NEEDED) ---
 // (getStatusReportHtml and handleStatusLookup functions remain the same)
 
@@ -272,14 +306,14 @@ async function handleOrderSubmission(event) {
     const email = `customer-${shortId}@datagod.app`;
     const amount = Math.round(selectedPackage.priceGHS * 100); // Convert to pesewas
 
-    // First, create a pending order in Supabase
+    // First, create a PROCESSING order in Supabase (will be updated to PAID after payment)
     const orderData = {
         shortId: shortId,
         customerPhone: customerPhone,
         packageGB: selectedPackage.dataValueGB,
         packagePrice: selectedPackage.priceGHS,
         packageDetails: selectedPackage.packageName,
-        status: ORDER_STATUS.PAID, // Marked as PAID after Paystack redirects
+        status: ORDER_STATUS.PROCESSING, // Will be updated to PAID after successful payment
         createdAt: new Date().toISOString(),
     };
 
@@ -324,12 +358,20 @@ function initiatePaystackPayment(email, amount, ref, packageName) {
         ref: ref,
         currency: 'GHS',
         onClose: function() {
-            console.log('✓ Payment modal closed callback fired');
-            showSuccessScreen(ref, packageName);
+            console.log('Payment modal closed - user may have cancelled');
+            // Don't show success screen - user cancelled or closed payment
         },
-        onSuccess: function(response) {
-            console.log('✓ Payment successful callback fired:', response);
-            showSuccessScreen(ref, packageName);
+        onSuccess: async function(response) {
+            console.log('✓ Payment successful:', response);
+            // Update order status to PAID
+            const updateResult = await updateOrderStatus(ref, ORDER_STATUS.PAID);
+            if (updateResult.success) {
+                console.log('Order status updated to PAID successfully');
+                showSuccessScreen(ref, packageName);
+            } else {
+                console.error('Failed to update order status:', updateResult.error);
+                alert(`Payment received but there was an error updating your order. Your tracking ID is ${ref}. Please contact support.`);
+            }
         }
     });
 
@@ -337,47 +379,22 @@ function initiatePaystackPayment(email, amount, ref, packageName) {
         console.log('Opening Paystack payment...');
         handler.openIframe();
         
-        // Listen for window focus events (user returns after payment)
-        let successShown = false;
-        const showSuccessOnce = () => {
-            if (!successShown) {
-                successShown = true;
-                console.log('Showing success screen after user returned to page');
+        // Fallback: Check payment status after 10 seconds if callback doesn't fire
+        setTimeout(async () => {
+            console.log('Fallback: Checking payment status...');
+            const order = await getOrderStatus(ref);
+            if (order && order.status === ORDER_STATUS.PAID) {
+                console.log('Payment verified as PAID, showing success screen');
                 showSuccessScreen(ref, packageName);
+            } else {
+                console.log('Payment not completed or cancelled. Order ID:', ref);
+                alert(`Payment incomplete. Your order ID is ${ref}. Please contact support if you completed payment.`);
             }
-        };
-        
-        // When user clicks back on the window (after closing Paystack)
-        const focusHandler = () => {
-            setTimeout(() => {
-                // Check if Paystack iframe is gone or hidden
-                const paystackIframe = document.querySelector('iframe[src*="checkout.paystack.com"]');
-                const paystackVisible = paystackIframe && 
-                    paystackIframe.style.display !== 'none' &&
-                    window.getComputedStyle(paystackIframe).visibility !== 'hidden';
-                
-                if (!paystackVisible) {
-                    console.log('Window focus + Paystack hidden = showing success');
-                    window.removeEventListener('focus', focusHandler);
-                    showSuccessOnce();
-                }
-            }, 500);
-        };
-        
-        window.addEventListener('focus', focusHandler);
-        
-        // Fallback: Show success screen after 30 seconds (enough time for payment)
-        setTimeout(() => {
-            console.log('Fallback timeout: Showing success screen');
-            window.removeEventListener('focus', focusHandler);
-            showSuccessOnce();
-        }, 30000);
+        }, 10000);
         
     } catch (error) {
         console.error('Error opening Paystack:', error);
-        setTimeout(() => {
-            showSuccessScreen(ref, packageName);
-        }, 500);
+        alert('Error opening payment. Please try again.');
     }
 }
 
