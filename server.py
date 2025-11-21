@@ -48,13 +48,17 @@ class NoCacheHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
             request_data = json.loads(body)
             
             reference = request_data.get('reference')
+            print(f'[VERIFY] Received verification request for reference: {reference}')
+            
             if not reference:
+                print('[VERIFY] Error: Missing reference')
                 self.send_response(400)
                 self.end_headers()
                 self.wfile.write(json.dumps({'success': False, 'error': 'Missing reference'}).encode())
                 return
             
             # Verify with Paystack API
+            print(f'[VERIFY] Calling Paystack API for reference: {reference}')
             verification_url = f'https://api.paystack.co/transaction/verify/{reference}'
             headers = {
                 'Authorization': f'Bearer {PAYSTACK_SECRET_KEY}',
@@ -65,7 +69,11 @@ class NoCacheHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
             response = urllib.request.urlopen(req, timeout=10)
             paystack_response = json.loads(response.read().decode('utf-8'))
             
+            print(f'[VERIFY] Paystack response status: {paystack_response.get("status")}, data status: {paystack_response.get("data", {}).get("status")}')
+            
             if paystack_response.get('status') and paystack_response.get('data', {}).get('status') == 'success':
+                print(f'[VERIFY] Payment verified! Updating order {reference} to PAID')
+                
                 # Payment verified! Update order status to PAID in Supabase
                 update_url = f'{SUPABASE_URL}/rest/v1/orders?short_id=eq.{reference}'
                 update_headers = {
@@ -77,6 +85,7 @@ class NoCacheHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
                 
                 update_req = urllib.request.Request(update_url, data=update_body, headers=update_headers, method='PATCH')
                 update_response = urllib.request.urlopen(update_req, timeout=10)
+                print(f'[VERIFY] Order updated successfully. Response status: {update_response.status}')
                 
                 self.send_response(200)
                 self.end_headers()
@@ -86,6 +95,7 @@ class NoCacheHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
                     'reference': reference
                 }).encode())
             else:
+                print(f'[VERIFY] Payment not successful on Paystack')
                 # Payment not successful
                 self.send_response(400)
                 self.end_headers()
@@ -95,7 +105,7 @@ class NoCacheHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
                 }).encode())
                 
         except urllib.error.HTTPError as e:
-            print(f'Paystack API error: {e}')
+            print(f'[VERIFY] Paystack API error: {e}')
             self.send_response(400)
             self.end_headers()
             self.wfile.write(json.dumps({
@@ -103,7 +113,9 @@ class NoCacheHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
                 'error': f'Payment verification failed: {str(e)}'
             }).encode())
         except Exception as e:
-            print(f'Error: {e}')
+            print(f'[VERIFY] Unexpected error: {e}')
+            import traceback
+            traceback.print_exc()
             self.send_response(500)
             self.end_headers()
             self.wfile.write(json.dumps({

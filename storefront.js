@@ -373,9 +373,9 @@ function initiatePaystackPayment(email, amount, ref, packageName) {
         ref: ref,
         currency: 'GHS',
         onClose: function() {
-            console.log('Payment modal closed');
-            // Verify payment with server after user closes modal
-            verifyPaymentWithServer(ref, packageName);
+            console.log('Payment modal closed, waiting a moment before verification...');
+            // Wait 2 seconds then verify (gives time for payment to process)
+            setTimeout(() => verifyPaymentWithServer(ref, packageName), 2000);
         },
         onSuccess: async function(response) {
             console.log('✓ Payment successful callback:', response);
