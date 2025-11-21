@@ -363,11 +363,15 @@ function initiatePaystackPayment(email, amount, packageName) {
         ref: paystackRef,
         currency: 'GHS',
         onClose: function() {
-            console.log('[PAYSTACK] Payment modal closed');
+            console.log('[PAYSTACK] Payment modal closed via onClose callback');
+            // Create order when modal closes (fallback for Replit iframe)
+            setTimeout(() => {
+                createOrderAfterPayment(paystackRef);
+            }, 1000);
         },
         onSuccess: async function(response) {
             console.log('[PAYSTACK] ✓ Payment successful! Response:', response);
-            // NOW create the order since payment was confirmed
+            // Create the order since payment was confirmed
             await createOrderAfterPayment(paystackRef);
         }
     });
@@ -375,6 +379,30 @@ function initiatePaystackPayment(email, amount, packageName) {
     try {
         console.log('[PAYSTACK] Opening payment modal...');
         handler.openIframe();
+        
+        // FALLBACK: Monitor for iframe closure and create order automatically
+        let checkCount = 0;
+        const maxChecks = 120; // Check for up to 2 minutes
+        const fallbackInterval = setInterval(async () => {
+            checkCount++;
+            
+            // Check if Paystack iframe still exists
+            const paystackIframe = document.querySelector('iframe[src*="paystack"]');
+            
+            if (!paystackIframe && checkCount < maxChecks) {
+                console.log('[PAYSTACK] Fallback: Modal disappeared, creating order...');
+                clearInterval(fallbackInterval);
+                // Create order with a small delay to allow Paystack to finalize
+                setTimeout(() => {
+                    createOrderAfterPayment(paystackRef);
+                }, 500);
+            } else if (checkCount >= maxChecks) {
+                clearInterval(fallbackInterval);
+                console.log('[PAYSTACK] Fallback: Max checks reached, stopping monitor');
+            }
+        }, 500); // Check every 500ms
+        
+        window.paystackMonitorInterval = fallbackInterval;
         
     } catch (error) {
         console.error('[PAYSTACK] Error opening payment modal:', error);
@@ -387,9 +415,20 @@ function initiatePaystackPayment(email, amount, packageName) {
  */
 async function createOrderAfterPayment(paystackRef) {
     try {
+        // Prevent duplicate order creation
+        if (window.orderCreatedForRef === paystackRef) {
+            console.log('[PAYSTACK] Order already created for this reference, skipping duplicate');
+            return;
+        }
+        window.orderCreatedForRef = paystackRef;
+        
+        // Clear the fallback monitor if still running
+        if (window.paystackMonitorInterval) {
+            clearInterval(window.paystackMonitorInterval);
+        }
+        
         if (!window.pendingOrderData) {
             console.error('[PAYSTACK] No pending order data found');
-            alert('Error: Order data lost. Please try again.');
             return;
         }
 
@@ -414,6 +453,7 @@ async function createOrderAfterPayment(paystackRef) {
         } else {
             console.error('[PAYSTACK] Order creation failed:', result.error);
             alert('Order could not be saved. Please contact support with reference: ' + paystackRef);
+            window.orderCreatedForRef = null; // Reset on error
         }
 
         // Clear pending data
@@ -422,6 +462,7 @@ async function createOrderAfterPayment(paystackRef) {
     } catch (error) {
         console.error('[PAYSTACK] Error creating order after payment:', error);
         alert('Error saving order: ' + error.message);
+        window.orderCreatedForRef = null; // Reset on error
     }
 }
 
