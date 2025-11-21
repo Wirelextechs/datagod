@@ -115,16 +115,23 @@ The project uses a Python HTTP server configured to:
 - Integrated Paystack payment gateway
 - Updated storefront to use real Paystack payment popup instead of mock payment
 - Added Paystack SDK and integrated payment flow with order creation
-- **Implemented secure server-side payment verification**: Backend verifies all payments with Paystack API
+- **Switched to LIVE Paystack keys**: Using live public key pk_live_7e49a5058739c7db12015d0a8ca0c27917110ce0
+- **Implemented Paystack webhook system**: Automatic payment verification via webhooks
+  - Webhook endpoint: `/api/webhook/paystack`
+  - HMAC SHA512 signature verification for security
+  - Automatically updates orders from CANCELLED → PAID when payment confirmed
 - **Updated order status flow**: 
-  - Orders start as `FAILED` when created (payment not yet confirmed)
-  - Automatically change to `PAID` when Paystack confirms payment
-  - Admin can then update to `FULFILLED` when data is delivered
-- **Added customer email collection**: Customers provide email for Paystack receipt (which includes tracking ID as reference)
-- **Improved UX**: Added notice explaining how Paystack receipt reference = order tracking ID
-- **Fixed order duplication**: Disabled submit button after first click and disabled payment modal from reopening
-- **Implemented payment verification polling**: Added client-side polling that checks order status every 2 seconds for up to 60 seconds after payment completes
-- **Fixed Paystack secret key**: Updated to use correct test secret key from environment variables for API authentication
+  - Orders start as `CANCELLED` when created (awaiting payment confirmation)
+  - Webhook automatically updates to `PAID` when Paystack confirms payment
+  - Admin can then update to `PROCESSING` → `FULFILLED` when data is delivered
+- **Added fallback "I Have Paid" button**: Manual payment verification if webhook fails
+- **Added customer email collection**: Customers provide email for Paystack receipt
+- **Improved UX**: 
+  - Added waiting screen after payment with manual verification option
+  - Shows tracking ID immediately
+  - Clear instructions for payment confirmation
+- **Fixed order duplication**: Disabled submit button after first click
+- Added 1.5% checkout fee displayed in order breakdown
 
 ## User Preferences
 - None specified yet
@@ -132,23 +139,33 @@ The project uses a Python HTTP server configured to:
 ## Payment Integration
 
 ### Paystack Payment Gateway
-The storefront now uses **Paystack** for real payment processing:
-- **Test Public Key**: pk_test_af33df7aad299f46565a2f5fc2adb221e22122d6
-- **Test Secret Key**: Stored in Replit Secrets (PAYSTACK_SECRET_KEY)
-- **Payment Flow**: Customer fills form → Paystack popup opens → Payment processed → Order created
+The storefront now uses **Paystack LIVE keys** for real payment processing:
+- **Live Public Key**: pk_live_7e49a5058739c7db12015d0a8ca0c27917110ce0 (in code)
+- **Live Secret Key**: Stored in Replit Secrets (PAYSTACK_SECRET_KEY)
+- **Webhook URL**: `https://workspace-wireextechs.replit.app/api/webhook/paystack`
+- **Webhook Security**: HMAC SHA512 signature verification
 
 ### Payment Flow:
-1. Customer enters MTN Mobile Money number
-2. Clicks "Confirm Order & Pay"
-3. Paystack inline popup opens for payment
-4. After successful payment, order is created in Supabase
-5. Customer receives 4-digit Short ID for tracking
+1. Customer selects package and enters phone number + email
+2. Order created in database with status = CANCELLED
+3. Paystack popup opens for payment (1.5% fee added)
+4. Customer completes payment
+5. **Automatic webhook**: Paystack sends webhook → Server verifies → Order updated to PAID
+6. **Fallback option**: Customer can click "I Have Paid" button to manually verify
+7. Success screen shows 4-digit tracking ID
+
+### Webhook Configuration Required:
+To enable automatic payment confirmation, add this webhook URL in your Paystack Dashboard:
+- URL: `https://workspace-wireextechs.replit.app/api/webhook/paystack`
+- Events: `charge.success`
 
 ## Next Steps for Production
-1. Move Supabase credentials to environment variables
-2. Implement Supabase Row Level Security (RLS) policies
-3. Switch from test keys to live Paystack keys
-4. Set up proper admin authentication with service keys
-5. Add webhook handler for Paystack payment verification
-6. Add error logging and monitoring
-7. Implement rate limiting for API calls
+1. ✅ ~~Switch to live Paystack keys~~ - DONE
+2. ✅ ~~Add webhook handler for payment verification~~ - DONE
+3. **Configure webhook in Paystack Dashboard** - Add webhook URL (see Payment Integration section)
+4. Move Supabase credentials to environment variables
+5. Implement Supabase Row Level Security (RLS) policies
+6. Set up proper admin authentication with service keys
+7. Add error logging and monitoring
+8. Implement rate limiting for API calls
+9. Test complete payment flow with real money (small amount first)

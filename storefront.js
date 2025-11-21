@@ -389,14 +389,14 @@ function initiatePaystackPayment(email, amount, packageName, shortId) {
         currency: 'GHS',
         onClose: function() {
             console.log('[PAYSTACK] Payment modal closed');
-            // Update order to PAID when modal closes
+            // Show waiting screen with manual verification button
             setTimeout(() => {
-                updateOrderToPaid(shortId, packageName);
+                showWaitingScreen(shortId, packageName);
             }, 1000);
         },
         onSuccess: async function(response) {
             console.log('[PAYSTACK] ✓ Payment successful!', response);
-            updateOrderToPaid(shortId, packageName);
+            showWaitingScreen(shortId, packageName);
         }
     });
 
@@ -429,43 +429,97 @@ function initiatePaystackPayment(email, amount, packageName, shortId) {
 }
 
 /**
- * Updates order status from CANCELLED to PAID
+ * Shows waiting screen with manual verification button
  */
-async function updateOrderToPaid(shortId, packageName) {
+function showWaitingScreen(shortId, packageName) {
+    if (window.paystackModalCheck) {
+        clearInterval(window.paystackModalCheck);
+    }
+    
+    console.log('[WAITING] Showing waiting screen for order:', shortId);
+    
+    const modal = document.getElementById('order-modal');
+    if (modal) {
+        modal.style.display = 'none';
+    }
+    
+    const mainContent = document.getElementById('main-content');
+    if (mainContent) {
+        mainContent.innerHTML = `
+            <div class="waiting-screen" style="z-index: 9999; position: relative; background: white; padding: 30px; text-align: center; max-width: 500px; margin: 40px auto; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+                <div style="font-size: 3em; margin-bottom: 20px;">⏳</div>
+                <h2 style="color: #007bff; margin-bottom: 15px;">Payment Processing</h2>
+                <p style="margin-bottom: 10px;">Your order has been created with tracking ID:</p>
+                <div style="background: #f0f8ff; padding: 15px; border-radius: 8px; margin: 20px 0;">
+                    <strong style="font-size: 2.5em; color: #007bff;">${shortId}</strong>
+                </div>
+                <p style="color: #666; margin-bottom: 25px;">
+                    If you completed your payment, click the button below to confirm and verify your payment with Paystack.
+                </p>
+                <button 
+                    id="verify-payment-btn" 
+                    onclick="verifyManualPayment('${shortId}', '${packageName}')"
+                    style="background-color: #28a745; color: white; padding: 15px 40px; border: none; border-radius: 5px; font-size: 1.1em; cursor: pointer; font-weight: bold; box-shadow: 0 2px 4px rgba(0,0,0,0.2);">
+                    ✓ I Have Paid - Verify Now
+                </button>
+                <p style="color: #999; margin-top: 20px; font-size: 0.9em;">
+                    Note: Verification happens automatically via webhook, but you can use this button if needed.
+                </p>
+                <button 
+                    onclick="location.reload()" 
+                    style="background-color: #6c757d; color: white; padding: 10px 20px; border: none; border-radius: 5px; margin-top: 15px; cursor: pointer;">
+                    Cancel & Start Over
+                </button>
+            </div>
+        `;
+        window.scrollTo(0, 0);
+    }
+}
+
+/**
+ * Manually verify payment with backend
+ */
+async function verifyManualPayment(shortId, packageName) {
+    const btn = document.getElementById('verify-payment-btn');
+    if (btn) {
+        btn.disabled = true;
+        btn.textContent = 'Verifying...';
+        btn.style.backgroundColor = '#6c757d';
+    }
+    
     try {
-        if (window.orderUpdatedToPaid === shortId) {
-            console.log('[UPDATE] Order already updated to PAID:', shortId);
-            return;
+        console.log('[VERIFY] Manually verifying payment for:', shortId);
+        
+        const response = await fetch('/api/verify-payment', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ reference: shortId })
+        });
+        
+        const result = await response.json();
+        console.log('[VERIFY] Backend response:', result);
+        
+        if (result.success) {
+            console.log('[VERIFY] ✓ Payment verified!');
+            showSuccessScreen(shortId, packageName);
+        } else {
+            console.error('[VERIFY] Payment verification failed:', result.error);
+            alert('Payment verification failed: ' + (result.error || 'Unknown error') + '\n\nYour order reference is: ' + shortId + '\n\nPlease contact support if you made a payment.');
+            if (btn) {
+                btn.disabled = false;
+                btn.textContent = '✓ I Have Paid - Verify Now';
+                btn.style.backgroundColor = '#28a745';
+            }
         }
-        window.orderUpdatedToPaid = shortId;
-        
-        if (window.paystackModalCheck) {
-            clearInterval(window.paystackModalCheck);
-        }
-        
-        console.log('[UPDATE] Updating order to PAID:', shortId);
-        
-        // Update order status directly in Supabase
-        const { data, error } = await supabaseClient
-            .from('orders')
-            .update({ status: ORDER_STATUS.PAID })
-            .eq('short_id', shortId)
-            .select();
-        
-        if (error) {
-            console.error('[UPDATE] Error updating to PAID:', error);
-            window.orderUpdatedToPaid = null;
-            alert('Error confirming payment. Order reference: ' + shortId);
-            return;
-        }
-        
-        console.log('[UPDATE] ✓ Order updated to PAID:', shortId);
-        showSuccessScreen(shortId, packageName);
         
     } catch (error) {
-        console.error('[UPDATE] Error updating order:', error);
-        alert('Error: ' + error.message);
-        window.orderUpdatedToPaid = null;
+        console.error('[VERIFY] Error:', error);
+        alert('Error verifying payment: ' + error.message + '\n\nOrder reference: ' + shortId);
+        if (btn) {
+            btn.disabled = false;
+            btn.textContent = '✓ I Have Paid - Verify Now';
+            btn.style.backgroundColor = '#28a745';
+        }
     }
 }
 
