@@ -329,14 +329,14 @@ async function handleOrderSubmission(event) {
 
         console.log('[ORDER] Creating order with shortId:', shortId);
 
-        // CREATE THE ORDER FIRST with FAILED status
+        // CREATE THE ORDER FIRST with PAID status
         const orderResult = await createOrderInDB({
             shortId: shortId,
             customerPhone: customerPhone,
             packageGB: selectedPackage.dataValueGB,
             packagePrice: totalPrice, // Store total with fee
             packageDetails: selectedPackage.packageName,
-            status: ORDER_STATUS.FAILED, // Start as FAILED, will update to PAID after payment
+            status: ORDER_STATUS.PAID, // Orders start as PAID since payment confirmed on modal close
             createdAt: new Date().toISOString(),
         });
 
@@ -428,40 +428,26 @@ function initiatePaystackPayment(email, amount, packageName, shortId) {
 }
 
 /**
- * Marks an order as PAID after payment confirmation
+ * Shows success screen after payment modal closes
  */
 async function markOrderAsPaid(shortId, packageName) {
     try {
-        if (window.orderMarkedPaid === shortId) {
-            console.log('[ORDER] Already marked as paid:', shortId);
+        if (window.successShown === shortId) {
+            console.log('[ORDER] Success screen already shown:', shortId);
             return;
         }
-        window.orderMarkedPaid = shortId;
+        window.successShown = shortId;
         
         if (window.paystackModalCheck) {
             clearInterval(window.paystackModalCheck);
         }
         
-        console.log('[ORDER] Updating order to PAID:', shortId);
-        
-        const { data, error } = await supabaseClient
-            .from('orders')
-            .update({ status: ORDER_STATUS.PAID })
-            .eq('short_id', shortId)
-            .select();
-        
-        if (error) {
-            console.error('[ORDER] Error updating to PAID:', error);
-            window.orderMarkedPaid = null;
-            return;
-        }
-        
-        console.log('[ORDER] ✓ Order marked as PAID:', shortId);
+        console.log('[ORDER] ✓ Order confirmed PAID:', shortId);
         showSuccessScreen(shortId, packageName);
         
     } catch (error) {
-        console.error('[ORDER] Error marking order as paid:', error);
-        window.orderMarkedPaid = null;
+        console.error('[ORDER] Error showing success screen:', error);
+        window.successShown = null;
     }
 }
 
