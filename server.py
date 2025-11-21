@@ -281,34 +281,51 @@ class NoCacheHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
                 'callback_url': f'https://datagod.replit.app/?payment_ref={reference}'
             }).encode('utf-8')
             
+            print(f'[INIT] Sending request to Paystack...')
+            print(f'[INIT] Secret key starts with: {PAYSTACK_SECRET_KEY[:10]}...')
+            
             req = urllib.request.Request(paystack_url, data=paystack_body, headers=paystack_headers, method='POST')
-            response = urllib.request.urlopen(req, timeout=10)
-            paystack_response = json.loads(response.read().decode('utf-8'))
             
-            print(f'[INIT] Paystack response: {paystack_response.get("status")}')
-            
-            if paystack_response.get('status'):
-                authorization_url = paystack_response.get('data', {}).get('authorization_url')
-                print(f'[INIT] ✓ Payment initialized. Authorization URL ready.')
+            try:
+                response = urllib.request.urlopen(req, timeout=10)
+                paystack_response = json.loads(response.read().decode('utf-8'))
                 
-                self.send_response(200)
-                self.end_headers()
-                self.wfile.write(json.dumps({
-                    'success': True,
-                    'authorization_url': authorization_url,
-                    'reference': reference
-                }).encode())
-            else:
-                print(f'[INIT] Paystack initialization failed')
-                self.send_response(400)
+                print(f'[INIT] Paystack response: {paystack_response.get("status")}')
+                
+                if paystack_response.get('status'):
+                    authorization_url = paystack_response.get('data', {}).get('authorization_url')
+                    print(f'[INIT] ✓ Payment initialized. Authorization URL ready.')
+                    
+                    self.send_response(200)
+                    self.end_headers()
+                    self.wfile.write(json.dumps({
+                        'success': True,
+                        'authorization_url': authorization_url,
+                        'reference': reference
+                    }).encode())
+                else:
+                    print(f'[INIT] Paystack initialization failed')
+                    self.send_response(400)
+                    self.end_headers()
+                    self.wfile.write(json.dumps({
+                        'success': False,
+                        'error': 'Payment initialization failed'
+                    }).encode())
+            except urllib.error.HTTPError as http_err:
+                # Read the error response from Paystack
+                error_body = http_err.read().decode('utf-8')
+                print(f'[INIT] HTTP Error {http_err.code}: {http_err.reason}')
+                print(f'[INIT] Paystack error response: {error_body}')
+                
+                self.send_response(500)
                 self.end_headers()
                 self.wfile.write(json.dumps({
                     'success': False,
-                    'error': 'Payment initialization failed'
+                    'error': f'Paystack API error: {error_body}'
                 }).encode())
                 
         except Exception as e:
-            print(f'[INIT] Error: {e}')
+            print(f'[INIT] Unexpected error: {e}')
             import traceback
             traceback.print_exc()
             self.send_response(500)
