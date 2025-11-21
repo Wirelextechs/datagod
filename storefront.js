@@ -304,6 +304,12 @@ async function handleOrderSubmission(event) {
                 },
                 onSuccess: function(response) {
                     console.log('Payment successful:', response);
+                    // Store successful order in localStorage
+                    localStorage.setItem('successfulOrder', JSON.stringify({
+                        shortId: shortId,
+                        packageName: selectedPackage.packageName,
+                        timestamp: Date.now()
+                    }));
                     // Hide modal completely
                     const modal = document.getElementById('order-modal');
                     if (modal) {
@@ -353,6 +359,25 @@ function showSuccessScreen(shortId, packageName) {
 
 // Initialize the Storefront when the page loads
 document.addEventListener('DOMContentLoaded', () => {
+    // Check if there's a successful order from previous payment
+    const successfulOrder = localStorage.getItem('successfulOrder');
+    if (successfulOrder) {
+        try {
+            const order = JSON.parse(successfulOrder);
+            // Only show success screen if order was completed recently (within 5 minutes)
+            if (Date.now() - order.timestamp < 5 * 60 * 1000) {
+                showSuccessScreen(order.shortId, order.packageName);
+                localStorage.removeItem('successfulOrder');
+                return;
+            } else {
+                localStorage.removeItem('successfulOrder');
+            }
+        } catch (e) {
+            console.error('Error parsing successful order:', e);
+            localStorage.removeItem('successfulOrder');
+        }
+    }
+
     renderCatalog();
     renderContactLink();
     
