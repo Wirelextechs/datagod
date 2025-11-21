@@ -301,15 +301,17 @@ async function handleOrderSubmission(event) {
                 currency: 'GHS',
                 onClose: function() {
                     console.log('Payment window closed.');
+                    // Check payment status when modal closes
+                    verifyPaymentAndShowSuccess(shortId, selectedPackage.packageName);
                 },
                 onSuccess: function(response) {
                     console.log('Payment successful:', response);
-                    // Display success screen directly without relying on page reload
+                    // Display success screen directly
                     showSuccessScreen(shortId, selectedPackage.packageName);
                 }
             });
             
-            handler.openIframe();
+            handler.openModal();
         } else {
             alert('Failed to create order. Please try again.');
         }
@@ -320,19 +322,36 @@ async function handleOrderSubmission(event) {
 }
 
 /**
+ * Verifies payment status and shows success screen
+ */
+async function verifyPaymentAndShowSuccess(shortId, packageName) {
+    // Check if order exists and is marked as PAID in Supabase
+    const { data, error } = await supabaseClient
+        .from('orders')
+        .select('status')
+        .eq('short_id', shortId)
+        .single();
+    
+    if (data && data.status === ORDER_STATUS.PAID) {
+        showSuccessScreen(shortId, packageName);
+    }
+}
+
+/**
  * Displays the success/confirmation screen.
  */
 function showSuccessScreen(shortId, packageName) {
-    // Hide modal first
+    // Hide modal completely with high z-index override
     const modal = document.getElementById('order-modal');
     if (modal) {
-        modal.style.display = 'none';
+        modal.style.display = 'none !important';
+        modal.style.zIndex = '-999';
     }
     
     const mainContent = document.getElementById('main-content');
     if (mainContent) {
         mainContent.innerHTML = `
-            <div class="success-screen">
+            <div class="success-screen" style="z-index: 9999; position: relative;">
                 <h2>✅ Purchase Confirmed!</h2>
                 <p>Your order for <strong>${packageName}</strong> has been successfully placed.</p>
                 <div class="short-id-box">
