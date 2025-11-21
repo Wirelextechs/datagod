@@ -287,23 +287,36 @@ async function handleOrderSubmission(event) {
         const result = await createOrderInDB(orderData);
         
         if (result.success) {
-            // Build Paystack redirect URL
-            const paystackUrl = new URL('https://checkout.paystack.com/');
-            paystackUrl.searchParams.append('key', PAYSTACK_PUBLIC_KEY);
-            paystackUrl.searchParams.append('email', email);
-            paystackUrl.searchParams.append('amount', amount);
-            paystackUrl.searchParams.append('ref', shortId);
-            paystackUrl.searchParams.append('currency', 'GHS');
+            // Create a form to submit to Paystack
+            const form = document.createElement('form');
+            form.method = 'POST';
+            form.action = 'https://checkout.paystack.com/';
+            form.style.display = 'none';
 
-            // Store order info in session for verification after payment
-            sessionStorage.setItem('paystack_pending_order', JSON.stringify({
-                shortId: shortId,
-                packageName: selectedPackage.packageName,
-                customerPhone: customerPhone,
-            }));
+            const fields = {
+                key: PAYSTACK_PUBLIC_KEY,
+                email: email,
+                amount: amount.toString(),
+                ref: shortId,
+                currency: 'GHS',
+                metadata: JSON.stringify({
+                    shortId: shortId,
+                    customerPhone: customerPhone,
+                    packageName: selectedPackage.packageName,
+                    packageGB: selectedPackage.dataValueGB,
+                })
+            };
 
-            // Redirect to Paystack
-            window.location.href = paystackUrl.toString();
+            for (const [key, value] of Object.entries(fields)) {
+                const input = document.createElement('input');
+                input.type = 'hidden';
+                input.name = key;
+                input.value = value;
+                form.appendChild(input);
+            }
+
+            document.body.appendChild(form);
+            form.submit();
         } else {
             alert('Failed to create order. Please try again.');
         }
