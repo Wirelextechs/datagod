@@ -337,30 +337,46 @@ function initiatePaystackPayment(email, amount, ref, packageName) {
         console.log('Opening Paystack payment...');
         handler.openIframe();
         
-        // Start checking for Paystack closure with aggressive polling
-        let checkCount = 0;
-        const checkInterval = setInterval(() => {
-            checkCount++;
-            console.log('Checking for Paystack... count:', checkCount);
+        // Wait a moment for Paystack to fully open
+        setTimeout(() => {
+            // Start checking for Paystack closure
+            let checkCount = 0;
+            let paystackWasOpen = false;
             
-            // Look for any Paystack elements
-            const paystackElements = document.querySelectorAll('iframe[src*="paystack"], iframe[name*="paystack"], .paystack-overlay, div[class*="paystack"]');
-            
-            console.log('Paystack elements found:', paystackElements.length);
-            
-            // If Paystack is gone and we've checked at least 3 times
-            if (paystackElements.length === 0 && checkCount > 3) {
-                console.log('Paystack closed detected! Showing success screen');
-                clearInterval(checkInterval);
-                showSuccessScreen(ref, packageName);
-            }
-            
-            // Stop after 3 minutes
-            if (checkCount > 180) {
-                console.log('Max checks reached, stopping');
-                clearInterval(checkInterval);
-            }
-        }, 1000); // Check every second
+            const checkInterval = setInterval(() => {
+                checkCount++;
+                
+                // Look specifically for the Paystack payment iframe (not container elements)
+                const paystackIframe = document.querySelector('iframe[src*="checkout.paystack.com"]');
+                
+                // Check if any Paystack element is visible
+                const paystackVisible = paystackIframe && 
+                    paystackIframe.offsetParent !== null && 
+                    window.getComputedStyle(paystackIframe).display !== 'none';
+                
+                console.log(`Check ${checkCount}: Paystack iframe ${paystackIframe ? 'exists' : 'missing'}, visible: ${paystackVisible}`);
+                
+                // Track if Paystack was ever open
+                if (paystackVisible) {
+                    paystackWasOpen = true;
+                }
+                
+                // If Paystack was open and is now closed/invisible
+                if (paystackWasOpen && !paystackVisible) {
+                    console.log('Paystack payment window closed! Showing success screen');
+                    clearInterval(checkInterval);
+                    showSuccessScreen(ref, packageName);
+                    return;
+                }
+                
+                // Stop after 3 minutes
+                if (checkCount > 180) {
+                    console.log('Max checks reached, stopping and showing success screen');
+                    clearInterval(checkInterval);
+                    showSuccessScreen(ref, packageName);
+                }
+            }, 1000); // Check every second
+        }, 2000); // Wait 2 seconds for Paystack to open first
         
     } catch (error) {
         console.error('Error opening Paystack:', error);
