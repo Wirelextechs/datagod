@@ -304,8 +304,15 @@ async function handleOrderSubmission(event) {
                 },
                 onSuccess: function(response) {
                     console.log('Payment successful:', response);
-                    closeOrderModal();
-                    showSuccessScreen(shortId, selectedPackage.packageName);
+                    // Hide modal completely
+                    const modal = document.getElementById('order-modal');
+                    if (modal) {
+                        modal.style.display = 'none';
+                    }
+                    // Show success screen after a brief delay to ensure modal is hidden
+                    setTimeout(() => {
+                        showSuccessScreen(shortId, selectedPackage.packageName);
+                    }, 100);
                 }
             });
             
@@ -334,11 +341,13 @@ function showSuccessScreen(shortId, packageName) {
                     <strong>${shortId}</strong>
                 </div>
                 <p class="instruction">
-                    **IMPORTANT:** Please save this 4-digit ID to track your order status on this page.
+                    <strong>IMPORTANT:</strong> Please save this 4-digit ID to track your order status on this page.
                 </p>
-                <button onclick="window.location.reload()">Back to Store</button>
+                <button onclick="window.location.reload()" style="background-color: #007bff; color: white; padding: 10px 20px; border: none; border-radius: 5px; margin-top: 20px; cursor: pointer;">Back to Store</button>
             </div>
         `;
+        // Scroll to top to ensure success screen is visible
+        window.scrollTo(0, 0);
     }
 }
 
