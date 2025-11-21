@@ -324,11 +324,11 @@ function initiatePaystackPayment(email, amount, ref, packageName) {
         ref: ref,
         currency: 'GHS',
         onClose: function() {
-            console.log('Payment modal closed callback fired');
+            console.log('✓ Payment modal closed callback fired');
             showSuccessScreen(ref, packageName);
         },
         onSuccess: function(response) {
-            console.log('Payment successful callback fired:', response);
+            console.log('✓ Payment successful callback fired:', response);
             showSuccessScreen(ref, packageName);
         }
     });
@@ -337,46 +337,41 @@ function initiatePaystackPayment(email, amount, ref, packageName) {
         console.log('Opening Paystack payment...');
         handler.openIframe();
         
-        // Wait a moment for Paystack to fully open
-        setTimeout(() => {
-            // Start checking for Paystack closure
-            let checkCount = 0;
-            let paystackWasOpen = false;
-            
-            const checkInterval = setInterval(() => {
-                checkCount++;
-                
-                // Look specifically for the Paystack payment iframe (not container elements)
+        // Listen for window focus events (user returns after payment)
+        let successShown = false;
+        const showSuccessOnce = () => {
+            if (!successShown) {
+                successShown = true;
+                console.log('Showing success screen after user returned to page');
+                showSuccessScreen(ref, packageName);
+            }
+        };
+        
+        // When user clicks back on the window (after closing Paystack)
+        const focusHandler = () => {
+            setTimeout(() => {
+                // Check if Paystack iframe is gone or hidden
                 const paystackIframe = document.querySelector('iframe[src*="checkout.paystack.com"]');
-                
-                // Check if any Paystack element is visible
                 const paystackVisible = paystackIframe && 
-                    paystackIframe.offsetParent !== null && 
-                    window.getComputedStyle(paystackIframe).display !== 'none';
+                    paystackIframe.style.display !== 'none' &&
+                    window.getComputedStyle(paystackIframe).visibility !== 'hidden';
                 
-                console.log(`Check ${checkCount}: Paystack iframe ${paystackIframe ? 'exists' : 'missing'}, visible: ${paystackVisible}`);
-                
-                // Track if Paystack was ever open
-                if (paystackVisible) {
-                    paystackWasOpen = true;
+                if (!paystackVisible) {
+                    console.log('Window focus + Paystack hidden = showing success');
+                    window.removeEventListener('focus', focusHandler);
+                    showSuccessOnce();
                 }
-                
-                // If Paystack was open and is now closed/invisible
-                if (paystackWasOpen && !paystackVisible) {
-                    console.log('Paystack payment window closed! Showing success screen');
-                    clearInterval(checkInterval);
-                    showSuccessScreen(ref, packageName);
-                    return;
-                }
-                
-                // Stop after 3 minutes
-                if (checkCount > 180) {
-                    console.log('Max checks reached, stopping and showing success screen');
-                    clearInterval(checkInterval);
-                    showSuccessScreen(ref, packageName);
-                }
-            }, 1000); // Check every second
-        }, 2000); // Wait 2 seconds for Paystack to open first
+            }, 500);
+        };
+        
+        window.addEventListener('focus', focusHandler);
+        
+        // Fallback: Show success screen after 30 seconds (enough time for payment)
+        setTimeout(() => {
+            console.log('Fallback timeout: Showing success screen');
+            window.removeEventListener('focus', focusHandler);
+            showSuccessOnce();
+        }, 30000);
         
     } catch (error) {
         console.error('Error opening Paystack:', error);
