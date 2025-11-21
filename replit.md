@@ -112,7 +112,7 @@ The project uses a Python HTTP server configured to:
 - Configured workflow to run on port 5000 with webview output
 - Configured static deployment settings
 - Created project documentation
-- Integrated Paystack payment gateway (pk_test_af33df7aad299f46565a2f5fc2adb221e22122d6)
+- Integrated Paystack payment gateway
 - Updated storefront to use real Paystack payment popup instead of mock payment
 - Added Paystack SDK and integrated payment flow with order creation
 - **Implemented secure server-side payment verification**: Backend verifies all payments with Paystack API
@@ -122,6 +122,9 @@ The project uses a Python HTTP server configured to:
   - Admin can then update to `FULFILLED` when data is delivered
 - **Added customer email collection**: Customers provide email for Paystack receipt (which includes tracking ID as reference)
 - **Improved UX**: Added notice explaining how Paystack receipt reference = order tracking ID
+- **Fixed order duplication**: Disabled submit button after first click and disabled payment modal from reopening
+- **Implemented payment verification polling**: Added client-side polling that checks order status every 2 seconds for up to 60 seconds after payment completes
+- **Fixed Paystack secret key**: Updated to use correct test secret key from environment variables for API authentication
 
 ## User Preferences
 - None specified yet
