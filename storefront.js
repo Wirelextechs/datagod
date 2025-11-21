@@ -80,7 +80,6 @@ async function createOrderInDB(orderData) {
             package_details: orderData.packageDetails,
             status: orderData.status,
             created_at: orderData.createdAt,
-            updated_at: orderData.createdAt,
         }])
         .select('short_id'); 
 
@@ -315,11 +314,12 @@ async function handleOrderSubmission(event) {
             
             handler.openModal();
         } else {
-            alert('Failed to create order. Please try again.');
+            console.error('Order creation failed:', result.error);
+            alert('Failed to create order: ' + (result.error?.message || 'Unknown error'));
         }
     } catch (error) {
         console.error("Error creating order:", error);
-        alert('An error occurred. Please try again.');
+        alert('An error occurred. Please try again: ' + error.message);
     }
 }
 
