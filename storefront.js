@@ -294,32 +294,41 @@ function closeOrderModal() {
  */
 async function handleOrderSubmission(event) {
     event.preventDefault();
-    const emailInput = document.getElementById('customer-email');
-    const momoNumberInput = document.getElementById('momo-number');
-    const email = emailInput.value.trim();
-    const customerPhone = momoNumberInput.value.trim();
-
-    if (!selectedPackage || !email || !customerPhone || customerPhone.length < 10) {
-        alert('Please enter a valid email and MTN Mobile Money number (10 digits).');
-        return;
-    }
-
-    // Generate a unique short ID for tracking
-    const shortId = generateShortId();
-    const amount = Math.round(selectedPackage.priceGHS * 100); // Convert to pesewas
-
-    // First, create a FAILED order in Supabase (will be updated to PAID after payment)
-    const orderData = {
-        shortId: shortId,
-        customerPhone: customerPhone,
-        packageGB: selectedPackage.dataValueGB,
-        packagePrice: selectedPackage.priceGHS,
-        packageDetails: selectedPackage.packageName,
-        status: ORDER_STATUS.FAILED, // Will be updated to PAID after successful payment
-        createdAt: new Date().toISOString(),
-    };
-
+    
+    // Prevent double-submission by disabling button
+    const submitBtn = event.target.querySelector('button[type="submit"]');
+    if (submitBtn.disabled) return;
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'Processing...';
+    
     try {
+        const emailInput = document.getElementById('customer-email');
+        const momoNumberInput = document.getElementById('momo-number');
+        const email = emailInput.value.trim();
+        const customerPhone = momoNumberInput.value.trim();
+
+        if (!selectedPackage || !email || !customerPhone || customerPhone.length < 10) {
+            alert('Please enter a valid email and MTN Mobile Money number (10 digits).');
+            submitBtn.disabled = false;
+            submitBtn.textContent = 'Confirm Order & Pay';
+            return;
+        }
+
+        // Generate a unique short ID for tracking
+        const shortId = generateShortId();
+        const amount = Math.round(selectedPackage.priceGHS * 100); // Convert to pesewas
+
+        // First, create a FAILED order in Supabase (will be updated to PAID after payment)
+        const orderData = {
+            shortId: shortId,
+            customerPhone: customerPhone,
+            packageGB: selectedPackage.dataValueGB,
+            packagePrice: selectedPackage.priceGHS,
+            packageDetails: selectedPackage.packageName,
+            status: ORDER_STATUS.FAILED, // Will be updated to PAID after successful payment
+            createdAt: new Date().toISOString(),
+        };
+
         const result = await createOrderInDB(orderData);
         console.log('Order creation result:', result);
         
@@ -332,10 +341,14 @@ async function handleOrderSubmission(event) {
         } else {
             console.error('Order creation failed:', result.error);
             alert('Failed to create order: ' + (result.error?.message || 'Unknown error'));
+            submitBtn.disabled = false;
+            submitBtn.textContent = 'Confirm Order & Pay';
         }
     } catch (error) {
         console.error("Error creating order:", error);
         alert('An error occurred. Please try again: ' + error.message);
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Confirm Order & Pay';
     }
 }
 
@@ -386,7 +399,7 @@ function initiatePaystackPayment(email, amount, ref, packageName) {
  */
 async function verifyPaymentWithServer(ref, packageName) {
     try {
-        console.log('Verifying payment with server...');
+        console.log('Verifying payment with server for ref:', ref);
         const response = await fetch('/api/verify-payment', {
             method: 'POST',
             headers: {
@@ -395,18 +408,22 @@ async function verifyPaymentWithServer(ref, packageName) {
             body: JSON.stringify({ reference: ref })
         });
         
+        console.log('Verify response status:', response.status);
         const result = await response.json();
+        console.log('Verify response result:', result);
         
         if (result.success) {
             console.log('✓ Payment verified by server, showing success screen');
             showSuccessScreen(ref, packageName);
         } else {
             console.log('Payment verification failed:', result.error);
-            alert(`Payment verification failed: ${result.error}. Your tracking ID is ${ref}. Please contact support if you completed payment.`);
+            // Don't show alert for payment verification failures - just log it
+            // User can check their email for receipt or use status checker
         }
     } catch (error) {
         console.error('Error verifying payment:', error);
-        alert(`Error verifying payment: ${error.message}. Your tracking ID is ${ref}. Please contact support.`);
+        // Network error, but payment might still have gone through
+        // User can check email for receipt or use status checker
     }
 }
 
