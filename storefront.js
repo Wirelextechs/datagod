@@ -388,15 +388,15 @@ function initiatePaystackPayment(email, amount, packageName, shortId) {
         ref: paystackRef,
         currency: 'GHS',
         onClose: function() {
-            console.log('[PAYSTACK] Payment modal closed, verifying payment...');
-            // Verify payment when modal closes
+            console.log('[PAYSTACK] Payment modal closed');
+            // Update order to PAID when modal closes
             setTimeout(() => {
-                verifyPaymentAndUpdateOrder(paystackRef, shortId, packageName);
-            }, 1500);
+                updateOrderToPaid(shortId, packageName);
+            }, 1000);
         },
         onSuccess: async function(response) {
-            console.log('[PAYSTACK] ✓ Payment successful callback!', response);
-            verifyPaymentAndUpdateOrder(paystackRef, shortId, packageName);
+            console.log('[PAYSTACK] ✓ Payment successful!', response);
+            updateOrderToPaid(shortId, packageName);
         }
     });
 
@@ -404,18 +404,19 @@ function initiatePaystackPayment(email, amount, packageName, shortId) {
         console.log('[PAYSTACK] Opening payment modal...');
         handler.openIframe();
         
-        // Fallback: Check if modal is gone and mark order as paid
+        // Fallback: Monitor if modal disappears and update order to PAID
         let checkCount = 0;
         const fallbackCheck = setInterval(() => {
             checkCount++;
             const paystackIframe = document.querySelector('iframe[src*="paystack"]');
             
             if (!paystackIframe && checkCount < 120) {
-                console.log('[PAYSTACK] Fallback: Modal closed, marking order as paid');
+                console.log('[PAYSTACK] Modal detected closed, updating order to PAID');
                 clearInterval(fallbackCheck);
-                setTimeout(() => markOrderAsPaid(shortId, packageName), 500);
+                setTimeout(() => updateOrderToPaid(shortId, packageName), 800);
             } else if (checkCount >= 120) {
                 clearInterval(fallbackCheck);
+                console.log('[PAYSTACK] Stopped monitoring modal');
             }
         }, 500);
         
@@ -428,45 +429,43 @@ function initiatePaystackPayment(email, amount, packageName, shortId) {
 }
 
 /**
- * Verifies payment with backend and updates order status to PAID if successful
+ * Updates order status from CANCELLED to PAID
  */
-async function verifyPaymentAndUpdateOrder(paystackRef, shortId, packageName) {
+async function updateOrderToPaid(shortId, packageName) {
     try {
-        if (window.paymentVerified === shortId) {
-            console.log('[VERIFY] Payment already verified for order:', shortId);
+        if (window.orderUpdatedToPaid === shortId) {
+            console.log('[UPDATE] Order already updated to PAID:', shortId);
             return;
         }
-        window.paymentVerified = shortId;
+        window.orderUpdatedToPaid = shortId;
         
         if (window.paystackModalCheck) {
             clearInterval(window.paystackModalCheck);
         }
         
-        console.log('[VERIFY] Verifying payment with backend for reference:', paystackRef);
+        console.log('[UPDATE] Updating order to PAID:', shortId);
         
-        // Call backend to verify payment with Paystack
-        const response = await fetch('/api/verify-payment', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ reference: paystackRef })
-        });
+        // Update order status directly in Supabase
+        const { data, error } = await supabaseClient
+            .from('orders')
+            .update({ status: ORDER_STATUS.PAID })
+            .eq('short_id', shortId)
+            .select();
         
-        const result = await response.json();
-        console.log('[VERIFY] Backend response:', result);
-        
-        if (result.success) {
-            console.log('[VERIFY] ✓ Payment verified successfully! Order:', shortId);
-            showSuccessScreen(shortId, packageName);
-        } else {
-            console.error('[VERIFY] Payment verification failed:', result.error);
-            alert('Payment could not be verified. Your order is on hold. Please contact support with reference: ' + shortId);
-            window.paymentVerified = null;
+        if (error) {
+            console.error('[UPDATE] Error updating to PAID:', error);
+            window.orderUpdatedToPaid = null;
+            alert('Error confirming payment. Order reference: ' + shortId);
+            return;
         }
         
+        console.log('[UPDATE] ✓ Order updated to PAID:', shortId);
+        showSuccessScreen(shortId, packageName);
+        
     } catch (error) {
-        console.error('[VERIFY] Error verifying payment:', error);
-        alert('Error verifying payment: ' + error.message);
-        window.paymentVerified = null;
+        console.error('[UPDATE] Error updating order:', error);
+        alert('Error: ' + error.message);
+        window.orderUpdatedToPaid = null;
     }
 }
 
