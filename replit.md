@@ -132,6 +132,17 @@ The project uses a Python HTTP server configured to:
   - Clear instructions for payment confirmation
 - **Fixed order duplication**: Disabled submit button after first click
 - Added 1.5% checkout fee displayed in order breakdown
+- **✅ SECURITY FIX: Enabled Supabase RLS policies**:
+  - Public can INSERT/SELECT orders only
+  - Backend service role can UPDATE order status
+  - Prevents client-side fraud (customers can't mark orders as PAID)
+- **✅ BACKEND FIX: Webhook and verification now use service role key**:
+  - Added SUPABASE_SERVICE_ROLE_KEY to Replit Secrets
+  - Both webhook and manual verification endpoints now properly update orders to PAID
+- **✅ FRONTEND FIX: Payment confirmation screen now shows reliably**:
+  - Removed unreliable Paystack `onSuccess` callback (doesn't work in iframes)
+  - Waiting screen now shows after ANY payment modal close (success or cancel)
+  - Users can always click "I Have Paid" to verify payment status
 
 ## User Preferences
 - None specified yet

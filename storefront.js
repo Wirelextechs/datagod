@@ -372,14 +372,7 @@ function initiatePaystackPayment(email, amount, packageName, shortId) {
         ref: paystackRef,
         currency: 'GHS',
         onClose: function() {
-            console.log('[PAYSTACK] Payment modal closed');
-            // Show waiting screen with manual verification button
-            setTimeout(() => {
-                showWaitingScreen(shortId, packageName);
-            }, 1000);
-        },
-        onSuccess: async function(response) {
-            console.log('[PAYSTACK] ✓ Payment successful!', response);
+            console.log('[PAYSTACK] Payment modal closed - showing verification screen');
             showWaitingScreen(shortId, packageName);
         }
     });
