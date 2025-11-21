@@ -337,29 +337,37 @@ function initiatePaystackPayment(email, amount, ref, packageName) {
         console.log('Opening Paystack payment...');
         handler.openIframe();
         
-        // Poll to detect when Paystack modal is closed (fallback for callback failure)
-        let pollCount = 0;
-        const pollInterval = setInterval(() => {
-            pollCount++;
+        // Use MutationObserver to detect when Paystack elements are removed
+        const observer = new MutationObserver((mutations) => {
+            // Look for Paystack overlay or iframe removal
+            const paystackOverlay = document.querySelector('.paystack-overlay');
+            const paystackFrame = document.querySelector('iframe[src*="paystack"], iframe[name*="paystack"]');
             
-            // Check if Paystack iframe is still present
-            const paystackFrame = document.querySelector('iframe[src*="paystack"]');
-            
-            if (!paystackFrame && pollCount > 5) {
-                console.log('Paystack modal detected as closed via polling');
-                clearInterval(pollInterval);
+            if (!paystackOverlay && !paystackFrame) {
+                console.log('Paystack modal removed from DOM, showing success screen');
+                observer.disconnect();
                 setTimeout(() => {
                     showSuccessScreen(ref, packageName);
-                }, 500);
+                }, 300);
             }
-            
-            // Stop polling after 2 minutes
-            if (pollCount > 120) {
-                clearInterval(pollInterval);
-                console.log('Polling timeout reached, showing success screen');
+        });
+        
+        // Observe the entire document body for changes
+        observer.observe(document.body, {
+            childList: true,
+            subtree: true
+        });
+        
+        // Fallback timeout in case observer doesn't catch it
+        setTimeout(() => {
+            observer.disconnect();
+            // Check one more time if Paystack is still open
+            const paystackStillOpen = document.querySelector('.paystack-overlay, iframe[src*="paystack"], iframe[name*="paystack"]');
+            if (!paystackStillOpen) {
+                console.log('Fallback timeout: showing success screen');
                 showSuccessScreen(ref, packageName);
             }
-        }, 1000);
+        }, 180000); // 3 minute absolute timeout
         
     } catch (error) {
         console.error('Error opening Paystack:', error);
@@ -390,22 +398,33 @@ async function verifyPaymentAndShowSuccess(shortId, packageName) {
  * Displays the success/confirmation screen.
  */
 function showSuccessScreen(shortId, packageName) {
-    // Hide modal completely with high z-index override
+    console.log('showSuccessScreen called with shortId:', shortId, 'packageName:', packageName);
+    
+    // Remove all Paystack elements forcefully
+    const paystackElements = document.querySelectorAll('iframe[src*="paystack"], iframe[name*="paystack"], .paystack-overlay, .paystack-container');
+    paystackElements.forEach(el => {
+        console.log('Removing Paystack element:', el);
+        el.remove();
+    });
+    
+    // Hide modal completely
     const modal = document.getElementById('order-modal');
     if (modal) {
-        modal.style.display = 'none !important';
-        modal.style.zIndex = '-999';
+        modal.style.display = 'none';
+        console.log('Modal hidden');
     }
     
     const mainContent = document.getElementById('main-content');
+    console.log('Main content element found:', !!mainContent);
+    
     if (mainContent) {
         mainContent.innerHTML = `
-            <div class="success-screen" style="z-index: 9999; position: relative;">
-                <h2>✅ Purchase Confirmed!</h2>
+            <div class="success-screen" style="z-index: 9999; position: relative; background: white; padding: 20px;">
+                <h2 style="color: #28a745;">✅ Purchase Confirmed!</h2>
                 <p>Your order for <strong>${packageName}</strong> has been successfully placed.</p>
                 <div class="short-id-box">
                     <p>Your Tracking ID (Short ID):</p>
-                    <strong>${shortId}</strong>
+                    <strong style="font-size: 2em; color: #007bff;">${shortId}</strong>
                 </div>
                 <p class="instruction">
                     <strong>IMPORTANT:</strong> Please save this 4-digit ID to track your order status on this page.
@@ -413,8 +432,13 @@ function showSuccessScreen(shortId, packageName) {
                 <button onclick="location.reload()" style="background-color: #007bff; color: white; padding: 10px 20px; border: none; border-radius: 5px; margin-top: 20px; cursor: pointer;">Back to Store</button>
             </div>
         `;
+        console.log('Success screen HTML set');
+        
         // Scroll to top to ensure success screen is visible
         window.scrollTo(0, 0);
+        console.log('Scrolled to top');
+    } else {
+        console.error('Main content element not found!');
     }
 }
 
