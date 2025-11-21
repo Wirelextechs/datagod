@@ -11,7 +11,7 @@ const supabaseClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 const PAYSTACK_PUBLIC_KEY = 'pk_test_af33df7aad299f46565a2f5fc2adb221e22122d6';
 
 // Enum for clear, controlled status values (Matches database status)
-const ORDER_STATUS = { FAILED: 'FAILED', PROCESSING: 'PROCESSING', PAID: 'PAID', FULFILLED: 'FULFILLED', CANCELLED: 'CANCELLED' };
+const ORDER_STATUS = { PROCESSING: 'PROCESSING', PAID: 'PAID', FULFILLED: 'FULFILLED', CANCELLED: 'CANCELLED' };
 
 // --- Utility Functions ---
 
@@ -329,14 +329,14 @@ async function handleOrderSubmission(event) {
 
         console.log('[ORDER] Creating order with shortId:', shortId);
 
-        // CREATE THE ORDER FIRST with PAID status
+        // CREATE THE ORDER FIRST with PROCESSING status (pending payment verification)
         const orderResult = await createOrderInDB({
             shortId: shortId,
             customerPhone: customerPhone,
             packageGB: selectedPackage.dataValueGB,
             packagePrice: totalPrice, // Store total with fee
             packageDetails: selectedPackage.packageName,
-            status: ORDER_STATUS.PAID, // Orders start as PAID since payment confirmed on modal close
+            status: ORDER_STATUS.PROCESSING, // Start as PROCESSING, will be verified and updated to PAID
             createdAt: new Date().toISOString(),
         });
 
@@ -378,8 +378,8 @@ function initiatePaystackPayment(email, amount, packageName, shortId) {
         return;
     }
 
-    const paystackRef = `ps_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    console.log('[PAYSTACK] Starting payment for order:', shortId, 'ref:', paystackRef);
+    const paystackRef = shortId; // Use order short ID as Paystack reference for easy tracking
+    console.log('[PAYSTACK] Starting payment for order:', shortId, 'using ref:', paystackRef);
 
     const handler = PaystackPop.setup({
         key: PAYSTACK_PUBLIC_KEY,
@@ -388,15 +388,15 @@ function initiatePaystackPayment(email, amount, packageName, shortId) {
         ref: paystackRef,
         currency: 'GHS',
         onClose: function() {
-            console.log('[PAYSTACK] Payment modal closed');
-            // Always update order to PAID when modal closes (payment was processed)
+            console.log('[PAYSTACK] Payment modal closed, verifying payment...');
+            // Verify payment when modal closes
             setTimeout(() => {
-                markOrderAsPaid(shortId, packageName);
-            }, 1000);
+                verifyPaymentAndUpdateOrder(paystackRef, shortId, packageName);
+            }, 1500);
         },
         onSuccess: async function(response) {
-            console.log('[PAYSTACK] ✓ Payment successful!', response);
-            markOrderAsPaid(shortId, packageName);
+            console.log('[PAYSTACK] ✓ Payment successful callback!', response);
+            verifyPaymentAndUpdateOrder(paystackRef, shortId, packageName);
         }
     });
 
@@ -428,26 +428,45 @@ function initiatePaystackPayment(email, amount, packageName, shortId) {
 }
 
 /**
- * Shows success screen after payment modal closes
+ * Verifies payment with backend and updates order status to PAID if successful
  */
-async function markOrderAsPaid(shortId, packageName) {
+async function verifyPaymentAndUpdateOrder(paystackRef, shortId, packageName) {
     try {
-        if (window.successShown === shortId) {
-            console.log('[ORDER] Success screen already shown:', shortId);
+        if (window.paymentVerified === shortId) {
+            console.log('[VERIFY] Payment already verified for order:', shortId);
             return;
         }
-        window.successShown = shortId;
+        window.paymentVerified = shortId;
         
         if (window.paystackModalCheck) {
             clearInterval(window.paystackModalCheck);
         }
         
-        console.log('[ORDER] ✓ Order confirmed PAID:', shortId);
-        showSuccessScreen(shortId, packageName);
+        console.log('[VERIFY] Verifying payment with backend for reference:', paystackRef);
+        
+        // Call backend to verify payment with Paystack
+        const response = await fetch('/api/verify-payment', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ reference: paystackRef })
+        });
+        
+        const result = await response.json();
+        console.log('[VERIFY] Backend response:', result);
+        
+        if (result.success) {
+            console.log('[VERIFY] ✓ Payment verified successfully! Order:', shortId);
+            showSuccessScreen(shortId, packageName);
+        } else {
+            console.error('[VERIFY] Payment verification failed:', result.error);
+            alert('Payment could not be verified. Your order is on hold. Please contact support with reference: ' + shortId);
+            window.paymentVerified = null;
+        }
         
     } catch (error) {
-        console.error('[ORDER] Error showing success screen:', error);
-        window.successShown = null;
+        console.error('[VERIFY] Error verifying payment:', error);
+        alert('Error verifying payment: ' + error.message);
+        window.paymentVerified = null;
     }
 }
 
