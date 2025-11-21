@@ -263,16 +263,20 @@ async function renderContactLink() {
 }
 
 /**
- * Opens the purchase confirmation modal.
+ * Opens the purchase confirmation modal with fee breakdown.
  */
 function openOrderModal() {
     const modal = document.getElementById('order-modal');
     const modalTitle = document.getElementById('modal-package-name');
-    const modalPrice = document.getElementById('modal-package-price');
+    const basePrice = selectedPackage.priceGHS;
+    const fee = basePrice * 0.015; // 1.5% fee
+    const total = basePrice + fee;
     
     if (modal && selectedPackage) {
         modalTitle.textContent = selectedPackage.packageName;
-        modalPrice.textContent = `GHS ${selectedPackage.priceGHS.toFixed(2)}`;
+        document.getElementById('modal-base-price').textContent = `GHS ${basePrice.toFixed(2)}`;
+        document.getElementById('modal-fee-amount').textContent = `GHS ${fee.toFixed(2)}`;
+        document.getElementById('modal-total-price').textContent = `GHS ${total.toFixed(2)}`;
         document.getElementById('customer-email').value = ''; 
         document.getElementById('momo-number').value = ''; 
         modal.style.display = 'flex';
@@ -315,7 +319,11 @@ async function handleOrderSubmission(event) {
             return;
         }
 
-        const amount = Math.round(selectedPackage.priceGHS * 100); // Convert to pesewas
+        // Calculate total amount with 1.5% processing fee
+        const basePrice = selectedPackage.priceGHS;
+        const fee = basePrice * 0.015; // 1.5% fee
+        const totalPrice = basePrice + fee;
+        const amount = Math.round(totalPrice * 100); // Convert to pesewas for Paystack
 
         // Close modal and proceed directly to payment
         // Order will be created AFTER payment confirmation
@@ -327,7 +335,9 @@ async function handleOrderSubmission(event) {
             customerPhone: customerPhone,
             packageGB: selectedPackage.dataValueGB,
             packagePrice: selectedPackage.priceGHS,
-            packageName: selectedPackage.packageName
+            packageFee: fee,
+            packageName: selectedPackage.packageName,
+            amountPaid: totalPrice // Store the total amount paid
         };
         
         // Initiate Paystack payment - order created only on success
@@ -441,7 +451,7 @@ async function createOrderAfterPayment(paystackRef) {
             shortId: shortId,
             customerPhone: orderData.customerPhone,
             packageGB: orderData.packageGB,
-            packagePrice: orderData.packagePrice,
+            packagePrice: orderData.amountPaid, // Store total amount paid (including fee)
             packageDetails: orderData.packageName,
             status: ORDER_STATUS.PAID, // Set to PAID immediately since payment confirmed
             createdAt: new Date().toISOString(),

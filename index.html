@@ -295,7 +295,21 @@
             
             <p>You are purchasing:</p>
             <h3 id="modal-package-name" style="color: #007bff;"></h3>
-            <h4 id="modal-package-price" style="color: #28a745;"></h4>
+            
+            <div style="background-color: #f8f9fa; padding: 15px; border-radius: 5px; margin: 15px 0; text-align: left;">
+                <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+                    <span>Package Price:</span>
+                    <strong id="modal-base-price" style="color: #28a745;"></strong>
+                </div>
+                <div style="display: flex; justify-content: space-between; border-top: 1px solid #ddd; padding-top: 8px; margin-top: 8px;">
+                    <span>1.5% Processing Fee:</span>
+                    <strong id="modal-fee-amount" style="color: #ff6b6b;"></strong>
+                </div>
+                <div style="display: flex; justify-content: space-between; font-size: 1.1em; font-weight: bold; margin-top: 10px; padding-top: 10px; border-top: 2px solid #ddd;">
+                    <span>Total to Pay:</span>
+                    <strong id="modal-total-price" style="color: #007bff;"></strong>
+                </div>
+            </div>
 
             <form id="order-form" onsubmit="handleOrderSubmission(event)">
                 <label for="customer-email">Email (for receipt with tracking ID):</label>
