@@ -26,6 +26,7 @@ DataGod is a real-time data vending platform for MTN Ghana. It allows customers 
 
 ### Customer Storefront (index.html)
 - Browse available MTN data packages
+- **Secure Paystack payment integration** for real transactions
 - Purchase data bundles with Mobile Money
 - Track order status using a 4-digit Short ID
 - WhatsApp support contact integration
@@ -111,14 +112,33 @@ The project uses a Python HTTP server configured to:
 - Configured workflow to run on port 5000 with webview output
 - Configured static deployment settings
 - Created project documentation
+- Integrated Paystack payment gateway (pk_test_af33df7aad299f46565a2f5fc2adb221e22122d6)
+- Updated storefront to use real Paystack payment popup instead of mock payment
+- Added Paystack SDK and integrated payment flow with order creation
 
 ## User Preferences
 - None specified yet
 
+## Payment Integration
+
+### Paystack Payment Gateway
+The storefront now uses **Paystack** for real payment processing:
+- **Test Public Key**: pk_test_af33df7aad299f46565a2f5fc2adb221e22122d6
+- **Test Secret Key**: Stored in Replit Secrets (PAYSTACK_SECRET_KEY)
+- **Payment Flow**: Customer fills form → Paystack popup opens → Payment processed → Order created
+
+### Payment Flow:
+1. Customer enters MTN Mobile Money number
+2. Clicks "Confirm Order & Pay"
+3. Paystack inline popup opens for payment
+4. After successful payment, order is created in Supabase
+5. Customer receives 4-digit Short ID for tracking
+
 ## Next Steps for Production
 1. Move Supabase credentials to environment variables
 2. Implement Supabase Row Level Security (RLS) policies
-3. Set up proper admin authentication with service keys
-4. Consider implementing actual Mobile Money integration
-5. Add error logging and monitoring
-6. Implement rate limiting for API calls
+3. Switch from test keys to live Paystack keys
+4. Set up proper admin authentication with service keys
+5. Add webhook handler for Paystack payment verification
+6. Add error logging and monitoring
+7. Implement rate limiting for API calls

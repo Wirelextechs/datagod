@@ -7,6 +7,9 @@ const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 const { createClient } = supabase;
 const supabaseClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
+// --- PAYSTACK INITIALIZATION ---
+const PAYSTACK_PUBLIC_KEY = 'pk_test_af33df7aad299f46565a2f5fc2adb221e22122d6';
+
 // Enum for clear, controlled status values (Matches database status)
 const ORDER_STATUS = { PAID: 'PAID', PROCESSING: 'PROCESSING', FULFILLED: 'FULFILLED', CANCELLED: 'CANCELLED' };
 
@@ -77,6 +80,7 @@ async function createOrderInDB(orderData) {
             package_details: orderData.packageDetails,
             status: orderData.status,
             created_at: orderData.createdAt,
+            updated_at: orderData.updatedAt,
         }])
         .select('short_id'); 
 
@@ -252,7 +256,7 @@ function closeOrderModal() {
 }
 
 /**
- * Handles the final order submission (Transaction Creation).
+ * Handles Paystack payment initialization and processing.
  */
 async function handleOrderSubmission(event) {
     event.preventDefault();
@@ -264,33 +268,60 @@ async function handleOrderSubmission(event) {
         return;
     }
 
-    // Create the transaction record
-    const orderData = {
-        shortId: generateShortId(), 
-        customerPhone: customerPhone,
-        packageGB: selectedPackage.dataValueGB,
-        packagePrice: selectedPackage.priceGHS,
-        packageDetails: selectedPackage.packageName,
-        status: ORDER_STATUS.PAID, 
-        createdAt: new Date(),
-        updatedAt: new Date(),
-    };
-
-    try {
-        const result = await createOrderInDB(orderData);
-        
-        // Confirmation and Tracking
-        if (result.success) {
-            closeOrderModal();
-            showSuccessScreen(result.shortId, selectedPackage.packageName);
-        } else {
-            alert('Order creation failed. Please try again.');
-        }
-
-    } catch (error) {
-        console.error("Error submitting order:", error);
-        alert('An error occurred during submission.');
+    if (!PaystackPop) {
+        alert('Payment system not loaded. Please refresh and try again.');
+        return;
     }
+
+    // Generate a unique short ID and email for Paystack
+    const shortId = generateShortId();
+    const email = `customer-${shortId}@datagod.local`; // Dummy email for Paystack
+    
+    // Initialize Paystack payment
+    const handler = PaystackPop.setup({
+        key: PAYSTACK_PUBLIC_KEY,
+        email: email,
+        amount: selectedPackage.priceGHS * 100, // Paystack expects amount in pesewas (cent equivalent)
+        ref: shortId, // Use short ID as reference
+        currency: 'GHS',
+        onClose: function() {
+            console.log('Payment window closed.');
+            alert('Payment cancelled. Your order was not created.');
+        },
+        onSuccess: async function(response) {
+            console.log('Payment successful:', response);
+            
+            // Create the transaction record in Supabase after successful payment
+            const orderData = {
+                shortId: shortId,
+                customerPhone: customerPhone,
+                packageGB: selectedPackage.dataValueGB,
+                packagePrice: selectedPackage.priceGHS,
+                packageDetails: selectedPackage.packageName,
+                status: ORDER_STATUS.PAID,
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString(),
+                paystackRef: response.reference, // Store Paystack reference for verification
+            };
+
+            try {
+                const result = await createOrderInDB(orderData);
+                
+                if (result.success) {
+                    closeOrderModal();
+                    showSuccessScreen(shortId, selectedPackage.packageName);
+                } else {
+                    alert('Order creation failed after payment. Please contact support with ref: ' + shortId);
+                    console.error('Failed to create order in database');
+                }
+            } catch (error) {
+                console.error("Error creating order after payment:", error);
+                alert('Order creation error. Please contact support with ref: ' + shortId);
+            }
+        }
+    });
+    
+    handler.openIframe();
 }
 
 /**
