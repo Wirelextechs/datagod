@@ -291,38 +291,9 @@ async function handleOrderSubmission(event) {
             // Close modal first
             closeOrderModal();
             
-            // Initialize Paystack popup
-            if (typeof PaystackPop === 'undefined') {
-                console.error('PaystackPop not loaded');
-                alert('Payment system not loaded. Please refresh and try again.');
-                return;
-            }
-
-            try {
-                const handler = PaystackPop.setup({
-                    key: PAYSTACK_PUBLIC_KEY,
-                    email: email,
-                    amount: amount,
-                    ref: shortId,
-                    currency: 'GHS',
-                    onClose: function() {
-                        console.log('Payment window closed.');
-                        // Show success screen after payment
-                        showSuccessScreen(shortId, selectedPackage.packageName);
-                    },
-                    onSuccess: function(response) {
-                        console.log('Payment successful:', response);
-                        // Display success screen directly
-                        showSuccessScreen(shortId, selectedPackage.packageName);
-                    }
-                });
-                
-                console.log('Paystack handler created, opening modal...');
-                handler.openModal();
-            } catch (paystackError) {
-                console.error('Paystack error:', paystackError);
-                alert('Error opening payment: ' + paystackError.message);
-            }
+            // Show success screen immediately after order is created
+            // Payment verification happens on the backend via Paystack webhooks
+            showSuccessScreen(shortId, selectedPackage.packageName);
         } else {
             console.error('Order creation failed:', result.error);
             alert('Failed to create order: ' + (result.error?.message || 'Unknown error'));
