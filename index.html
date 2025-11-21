@@ -297,7 +297,9 @@
             <h3 id="modal-package-name" style="color: #007bff;"></h3>
             <h4 id="modal-package-price" style="color: #28a745;"></h4>
 
-            <form id="order-form">
+            <form id="order-form" onsubmit="handleOrderSubmission(event)">
+                <label for="customer-email">Email (for receipt with tracking ID):</label>
+                <input type="email" id="customer-email" placeholder="your@email.com" required>
                 <label for="momo-number">Enter Beneficiary MTN Number (where data will be sent):</label>
                 <input type="text" id="momo-number" placeholder="0XXXXXXXXX" required pattern="0[0-9]{9}" title="Enter a valid 10-digit number starting with 0">
                 <p style="font-size: 0.9em; color: gray;">

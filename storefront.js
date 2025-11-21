@@ -273,6 +273,7 @@ function openOrderModal() {
     if (modal && selectedPackage) {
         modalTitle.textContent = selectedPackage.packageName;
         modalPrice.textContent = `GHS ${selectedPackage.priceGHS.toFixed(2)}`;
+        document.getElementById('customer-email').value = ''; 
         document.getElementById('momo-number').value = ''; 
         modal.style.display = 'flex';
     }
@@ -293,17 +294,18 @@ function closeOrderModal() {
  */
 async function handleOrderSubmission(event) {
     event.preventDefault();
+    const emailInput = document.getElementById('customer-email');
     const momoNumberInput = document.getElementById('momo-number');
+    const email = emailInput.value.trim();
     const customerPhone = momoNumberInput.value.trim();
 
-    if (!selectedPackage || !customerPhone || customerPhone.length < 10) {
-        alert('Please enter a valid MTN Mobile Money number (10 digits).');
+    if (!selectedPackage || !email || !customerPhone || customerPhone.length < 10) {
+        alert('Please enter a valid email and MTN Mobile Money number (10 digits).');
         return;
     }
 
     // Generate a unique short ID for tracking
     const shortId = generateShortId();
-    const email = `customer-${shortId}@datagod.app`;
     const amount = Math.round(selectedPackage.priceGHS * 100); // Convert to pesewas
 
     // First, create a PROCESSING order in Supabase (will be updated to PAID after payment)
@@ -325,7 +327,10 @@ async function handleOrderSubmission(event) {
             // Close modal first
             closeOrderModal();
             
-            // Initiate Paystack payment using redirect method
+            // Show message about receipt
+            alert(`Order created! Paystack will send a receipt to ${email} with your tracking ID ${shortId}`);
+            
+            // Initiate Paystack payment - Paystack will send receipt with reference (tracking ID)
             initiatePaystackPayment(email, amount, shortId, selectedPackage.packageName);
         } else {
             console.error('Order creation failed:', result.error);
