@@ -291,9 +291,8 @@ async function handleOrderSubmission(event) {
             // Close modal first
             closeOrderModal();
             
-            // Show success screen immediately after order is created
-            // Payment verification happens on the backend via Paystack webhooks
-            showSuccessScreen(shortId, selectedPackage.packageName);
+            // Initiate Paystack payment using redirect method
+            initiatePaystackPayment(email, amount, shortId, selectedPackage.packageName);
         } else {
             console.error('Order creation failed:', result.error);
             alert('Failed to create order: ' + (result.error?.message || 'Unknown error'));
@@ -301,6 +300,44 @@ async function handleOrderSubmission(event) {
     } catch (error) {
         console.error("Error creating order:", error);
         alert('An error occurred. Please try again: ' + error.message);
+    }
+}
+
+/**
+ * Initiates Paystack payment using redirect method
+ */
+function initiatePaystackPayment(email, amount, ref, packageName) {
+    if (typeof PaystackPop === 'undefined') {
+        console.error('PaystackPop not loaded');
+        alert('Payment system not loaded. Please refresh and try again.');
+        return;
+    }
+
+    const handler = PaystackPop.setup({
+        key: PAYSTACK_PUBLIC_KEY,
+        email: email,
+        amount: amount,
+        ref: ref,
+        currency: 'GHS',
+        onClose: function() {
+            console.log('Payment modal closed.');
+            // Show success screen anyway - order was created in DB
+            showSuccessScreen(ref, packageName);
+        },
+        onSuccess: function(response) {
+            console.log('Payment successful:', response);
+            // Show success screen with tracking ID
+            showSuccessScreen(ref, packageName);
+        }
+    });
+
+    try {
+        console.log('Opening Paystack payment...');
+        handler.openIframe();
+    } catch (error) {
+        console.error('Error opening Paystack:', error);
+        // Fallback: show success screen since order exists in DB
+        showSuccessScreen(ref, packageName);
     }
 }
 
