@@ -114,22 +114,6 @@ async function findOrderByShortId(shortId) {
     return null;
 }
 
-/**
- * Updates an order's status in the database.
- */
-async function updateOrderStatus(shortId, newStatus) {
-    const { data, error } = await supabaseClient
-        .from('orders')
-        .update({ status: newStatus })
-        .eq('short_id', shortId)
-        .select();
-
-    if (error) {
-        console.error('Error updating order status:', error);
-        return { success: false, error: error };
-    }
-    return { success: true, data: data };
-}
 
 /**
  * Gets an order's current status from the database.
@@ -403,25 +387,6 @@ function initiatePaystackPayment(email, amount, packageName, shortId) {
     try {
         console.log('[PAYSTACK] Opening payment modal...');
         handler.openIframe();
-        
-        // Fallback: Monitor if modal disappears and update order to PAID
-        let checkCount = 0;
-        const fallbackCheck = setInterval(() => {
-            checkCount++;
-            const paystackIframe = document.querySelector('iframe[src*="paystack"]');
-            
-            if (!paystackIframe && checkCount < 120) {
-                console.log('[PAYSTACK] Modal detected closed, updating order to PAID');
-                clearInterval(fallbackCheck);
-                setTimeout(() => updateOrderToPaid(shortId, packageName), 800);
-            } else if (checkCount >= 120) {
-                clearInterval(fallbackCheck);
-                console.log('[PAYSTACK] Stopped monitoring modal');
-            }
-        }, 500);
-        
-        window.paystackModalCheck = fallbackCheck;
-        
     } catch (error) {
         console.error('[PAYSTACK] Error opening payment modal:', error);
         alert('Error opening payment. Please try again.');
@@ -432,10 +397,6 @@ function initiatePaystackPayment(email, amount, packageName, shortId) {
  * Shows waiting screen with manual verification button
  */
 function showWaitingScreen(shortId, packageName) {
-    if (window.paystackModalCheck) {
-        clearInterval(window.paystackModalCheck);
-    }
-    
     console.log('[WAITING] Showing waiting screen for order:', shortId);
     
     const modal = document.getElementById('order-modal');
