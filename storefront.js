@@ -269,7 +269,7 @@ async function handleOrderSubmission(event) {
 
     // Generate a unique short ID for tracking
     const shortId = generateShortId();
-    const email = `customer-${shortId}@datagod.local`;
+    const email = `customer-${shortId}@datagod.app`;
     const amount = Math.round(selectedPackage.priceGHS * 100); // Convert to pesewas
 
     // First, create a pending order in Supabase
