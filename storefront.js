@@ -358,20 +358,14 @@ function initiatePaystackPayment(email, amount, ref, packageName) {
         ref: ref,
         currency: 'GHS',
         onClose: function() {
-            console.log('Payment modal closed - user may have cancelled');
-            // Don't show success screen - user cancelled or closed payment
+            console.log('Payment modal closed');
+            // Verify payment with server after user closes modal
+            verifyPaymentWithServer(ref, packageName);
         },
         onSuccess: async function(response) {
-            console.log('✓ Payment successful:', response);
-            // Update order status to PAID
-            const updateResult = await updateOrderStatus(ref, ORDER_STATUS.PAID);
-            if (updateResult.success) {
-                console.log('Order status updated to PAID successfully');
-                showSuccessScreen(ref, packageName);
-            } else {
-                console.error('Failed to update order status:', updateResult.error);
-                alert(`Payment received but there was an error updating your order. Your tracking ID is ${ref}. Please contact support.`);
-            }
+            console.log('✓ Payment successful callback:', response);
+            // Verify with server immediately
+            verifyPaymentWithServer(ref, packageName);
         }
     });
 
@@ -379,22 +373,38 @@ function initiatePaystackPayment(email, amount, ref, packageName) {
         console.log('Opening Paystack payment...');
         handler.openIframe();
         
-        // Fallback: Check payment status after 10 seconds if callback doesn't fire
-        setTimeout(async () => {
-            console.log('Fallback: Checking payment status...');
-            const order = await getOrderStatus(ref);
-            if (order && order.status === ORDER_STATUS.PAID) {
-                console.log('Payment verified as PAID, showing success screen');
-                showSuccessScreen(ref, packageName);
-            } else {
-                console.log('Payment not completed or cancelled. Order ID:', ref);
-                alert(`Payment incomplete. Your order ID is ${ref}. Please contact support if you completed payment.`);
-            }
-        }, 10000);
-        
     } catch (error) {
         console.error('Error opening Paystack:', error);
         alert('Error opening payment. Please try again.');
+    }
+}
+
+/**
+ * Verifies payment with backend server and updates order status
+ */
+async function verifyPaymentWithServer(ref, packageName) {
+    try {
+        console.log('Verifying payment with server...');
+        const response = await fetch('/api/verify-payment', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ reference: ref })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            console.log('✓ Payment verified by server, showing success screen');
+            showSuccessScreen(ref, packageName);
+        } else {
+            console.log('Payment verification failed:', result.error);
+            alert(`Payment verification failed: ${result.error}. Your tracking ID is ${ref}. Please contact support if you completed payment.`);
+        }
+    } catch (error) {
+        console.error('Error verifying payment:', error);
+        alert(`Error verifying payment: ${error.message}. Your tracking ID is ${ref}. Please contact support.`);
     }
 }
 
