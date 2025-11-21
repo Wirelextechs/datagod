@@ -304,21 +304,8 @@ async function handleOrderSubmission(event) {
                 },
                 onSuccess: function(response) {
                     console.log('Payment successful:', response);
-                    // Store successful order in localStorage
-                    localStorage.setItem('successfulOrder', JSON.stringify({
-                        shortId: shortId,
-                        packageName: selectedPackage.packageName,
-                        timestamp: Date.now()
-                    }));
-                    // Hide modal completely
-                    const modal = document.getElementById('order-modal');
-                    if (modal) {
-                        modal.style.display = 'none';
-                    }
-                    // Show success screen after a brief delay to ensure modal is hidden
-                    setTimeout(() => {
-                        showSuccessScreen(shortId, selectedPackage.packageName);
-                    }, 100);
+                    // Display success screen directly without relying on page reload
+                    showSuccessScreen(shortId, selectedPackage.packageName);
                 }
             });
             
@@ -336,6 +323,12 @@ async function handleOrderSubmission(event) {
  * Displays the success/confirmation screen.
  */
 function showSuccessScreen(shortId, packageName) {
+    // Hide modal first
+    const modal = document.getElementById('order-modal');
+    if (modal) {
+        modal.style.display = 'none';
+    }
+    
     const mainContent = document.getElementById('main-content');
     if (mainContent) {
         mainContent.innerHTML = `
@@ -349,7 +342,7 @@ function showSuccessScreen(shortId, packageName) {
                 <p class="instruction">
                     <strong>IMPORTANT:</strong> Please save this 4-digit ID to track your order status on this page.
                 </p>
-                <button onclick="window.location.reload()" style="background-color: #007bff; color: white; padding: 10px 20px; border: none; border-radius: 5px; margin-top: 20px; cursor: pointer;">Back to Store</button>
+                <button onclick="location.reload()" style="background-color: #007bff; color: white; padding: 10px 20px; border: none; border-radius: 5px; margin-top: 20px; cursor: pointer;">Back to Store</button>
             </div>
         `;
         // Scroll to top to ensure success screen is visible
@@ -359,25 +352,6 @@ function showSuccessScreen(shortId, packageName) {
 
 // Initialize the Storefront when the page loads
 document.addEventListener('DOMContentLoaded', () => {
-    // Check if there's a successful order from previous payment
-    const successfulOrder = localStorage.getItem('successfulOrder');
-    if (successfulOrder) {
-        try {
-            const order = JSON.parse(successfulOrder);
-            // Only show success screen if order was completed recently (within 5 minutes)
-            if (Date.now() - order.timestamp < 5 * 60 * 1000) {
-                showSuccessScreen(order.shortId, order.packageName);
-                localStorage.removeItem('successfulOrder');
-                return;
-            } else {
-                localStorage.removeItem('successfulOrder');
-            }
-        } catch (e) {
-            console.error('Error parsing successful order:', e);
-            localStorage.removeItem('successfulOrder');
-        }
-    }
-
     renderCatalog();
     renderContactLink();
     
