@@ -377,22 +377,47 @@ function initiatePaystackPayment(email, amount, ref, packageName) {
         ref: paystackRef, // Use unique Paystack reference
         currency: 'GHS',
         onClose: function() {
-            console.log('Payment modal closed, checking payment status...');
-            // Wait 3 seconds then check status
-            setTimeout(() => markPaymentAsCompleted(ref), 3000);
+            console.log('[PAYSTACK] Payment modal closed');
+            // Wait 2 seconds then mark as completed (gives time for Paystack to process)
+            setTimeout(() => {
+                console.log('[PAYSTACK] onClose callback triggered - completing payment');
+                markPaymentAsCompleted(ref);
+            }, 2000);
         },
         onSuccess: async function(response) {
-            console.log('✓ Payment successful callback:', response);
+            console.log('[PAYSTACK] onSuccess callback triggered:', response);
             markPaymentAsCompleted(ref);
         }
     });
 
     try {
-        console.log('Opening Paystack payment...');
+        console.log('[PAYSTACK] Opening Paystack payment iframe...');
         handler.openIframe();
         
+        // FALLBACK: Poll for modal closure and mark as completed if not triggered by callbacks
+        let checkCount = 0;
+        const maxChecks = 60; // Check for up to 60 seconds
+        const fallbackCheck = setInterval(() => {
+            checkCount++;
+            
+            // Check if Paystack iframe still exists
+            const paystackIframe = document.querySelector('iframe[src*="paystack"]');
+            
+            if (!paystackIframe && checkCount < maxChecks) {
+                console.log('[PAYSTACK] Fallback: Modal detected as closed, marking payment as completed');
+                clearInterval(fallbackCheck);
+                markPaymentAsCompleted(ref);
+            } else if (checkCount >= maxChecks) {
+                clearInterval(fallbackCheck);
+                console.log('[PAYSTACK] Fallback: Timeout reached, stopping modal check');
+            }
+        }, 1000); // Check every second
+        
+        // Store interval ID for cleanup if needed
+        window.paystackModalCheckInterval = fallbackCheck;
+        
     } catch (error) {
-        console.error('Error opening Paystack:', error);
+        console.error('[PAYSTACK] Error opening payment modal:', error);
         alert('Error opening payment. Please try again.');
     }
 }
@@ -401,8 +426,20 @@ function initiatePaystackPayment(email, amount, ref, packageName) {
  * Marks order as PAID after successful payment
  */
 async function markPaymentAsCompleted(shortId) {
+    // Prevent duplicate calls
+    if (window.paymentCompletedForId === shortId) {
+        console.log(`[PAYSTACK] Payment already marked as completed for ${shortId}, skipping duplicate call`);
+        return;
+    }
+    
     try {
-        console.log(`Marking order ${shortId} as PAID...`);
+        console.log(`[PAYSTACK] Marking order ${shortId} as PAID...`);
+        window.paymentCompletedForId = shortId; // Set flag to prevent duplicates
+        
+        // Clear the fallback modal check if still running
+        if (window.paystackModalCheckInterval) {
+            clearInterval(window.paystackModalCheckInterval);
+        }
         
         // Update order status to PAID in Supabase directly
         const { data, error } = await supabaseClient
@@ -411,14 +448,16 @@ async function markPaymentAsCompleted(shortId) {
             .eq('short_id', shortId);
         
         if (error) {
-            console.error('Error updating order status:', error);
+            console.error('[PAYSTACK] Error updating order status:', error);
+            window.paymentCompletedForId = null; // Clear flag on error
             return;
         }
         
-        console.log(`✓ Order ${shortId} marked as PAID`);
+        console.log(`[PAYSTACK] ✓ Order ${shortId} successfully marked as PAID`);
         showSuccessScreen(shortId, window.currentPackageName);
     } catch (err) {
-        console.error('Error marking payment as completed:', err);
+        console.error('[PAYSTACK] Error marking payment as completed:', err);
+        window.paymentCompletedForId = null; // Clear flag on error
     }
 }
 
