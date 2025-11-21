@@ -256,7 +256,7 @@ function closeOrderModal() {
 }
 
 /**
- * Handles Paystack payment initialization and processing.
+ * Handles Paystack payment using redirect flow (works better with Replit proxy).
  */
 async function handleOrderSubmission(event) {
     event.preventDefault();
@@ -268,60 +268,51 @@ async function handleOrderSubmission(event) {
         return;
     }
 
-    if (!PaystackPop) {
-        alert('Payment system not loaded. Please refresh and try again.');
-        return;
-    }
-
-    // Generate a unique short ID and email for Paystack
+    // Generate a unique short ID for tracking
     const shortId = generateShortId();
-    const email = `customer-${shortId}@datagod.local`; // Dummy email for Paystack
-    
-    // Initialize Paystack payment
-    const handler = PaystackPop.setup({
-        key: PAYSTACK_PUBLIC_KEY,
-        email: email,
-        amount: selectedPackage.priceGHS * 100, // Paystack expects amount in pesewas (cent equivalent)
-        ref: shortId, // Use short ID as reference
-        currency: 'GHS',
-        onClose: function() {
-            console.log('Payment window closed.');
-            alert('Payment cancelled. Your order was not created.');
-        },
-        onSuccess: async function(response) {
-            console.log('Payment successful:', response);
-            
-            // Create the transaction record in Supabase after successful payment
-            const orderData = {
-                shortId: shortId,
-                customerPhone: customerPhone,
-                packageGB: selectedPackage.dataValueGB,
-                packagePrice: selectedPackage.priceGHS,
-                packageDetails: selectedPackage.packageName,
-                status: ORDER_STATUS.PAID,
-                createdAt: new Date().toISOString(),
-                updatedAt: new Date().toISOString(),
-                paystackRef: response.reference, // Store Paystack reference for verification
-            };
+    const email = `customer-${shortId}@datagod.local`;
+    const amount = Math.round(selectedPackage.priceGHS * 100); // Convert to pesewas
 
-            try {
-                const result = await createOrderInDB(orderData);
-                
-                if (result.success) {
-                    closeOrderModal();
-                    showSuccessScreen(shortId, selectedPackage.packageName);
-                } else {
-                    alert('Order creation failed after payment. Please contact support with ref: ' + shortId);
-                    console.error('Failed to create order in database');
-                }
-            } catch (error) {
-                console.error("Error creating order after payment:", error);
-                alert('Order creation error. Please contact support with ref: ' + shortId);
-            }
+    // First, create a pending order in Supabase
+    const orderData = {
+        shortId: shortId,
+        customerPhone: customerPhone,
+        packageGB: selectedPackage.dataValueGB,
+        packagePrice: selectedPackage.priceGHS,
+        packageDetails: selectedPackage.packageName,
+        status: 'PENDING', // Payment pending
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+    };
+
+    try {
+        const result = await createOrderInDB(orderData);
+        
+        if (result.success) {
+            // Build Paystack redirect URL
+            const paystackUrl = new URL('https://checkout.paystack.com/');
+            paystackUrl.searchParams.append('key', PAYSTACK_PUBLIC_KEY);
+            paystackUrl.searchParams.append('email', email);
+            paystackUrl.searchParams.append('amount', amount);
+            paystackUrl.searchParams.append('ref', shortId);
+            paystackUrl.searchParams.append('currency', 'GHS');
+
+            // Store order info in session for verification after payment
+            sessionStorage.setItem('paystack_pending_order', JSON.stringify({
+                shortId: shortId,
+                packageName: selectedPackage.packageName,
+                customerPhone: customerPhone,
+            }));
+
+            // Redirect to Paystack
+            window.location.href = paystackUrl.toString();
+        } else {
+            alert('Failed to create order. Please try again.');
         }
-    });
-    
-    handler.openIframe();
+    } catch (error) {
+        console.error("Error creating order:", error);
+        alert('An error occurred. Please try again.');
+    }
 }
 
 /**
