@@ -5,6 +5,8 @@ import json
 import os
 import urllib.request
 import urllib.error
+import hmac
+import hashlib
 from urllib.parse import urlparse
 
 # Supabase config
@@ -38,12 +40,91 @@ class NoCacheHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
         # Parse URL
         parsed_path = urlparse(self.path)
         
+        # Paystack webhook endpoint
+        if parsed_path.path == '/api/webhook/paystack':
+            self.handle_paystack_webhook()
         # Payment verification endpoint
-        if parsed_path.path == '/api/verify-payment':
+        elif parsed_path.path == '/api/verify-payment':
             self.handle_verify_payment()
         else:
             self.send_response(404)
             self.end_headers()
+
+    def handle_paystack_webhook(self):
+        """Handle Paystack webhook for automatic payment confirmation"""
+        try:
+            # Read request body
+            content_length = int(self.headers.get('Content-Length', 0))
+            body = self.rfile.read(content_length)
+            
+            # Verify webhook signature
+            paystack_signature = self.headers.get('x-paystack-signature', '')
+            print(f'[WEBHOOK] Received webhook, signature present: {bool(paystack_signature)}')
+            
+            if not PAYSTACK_SECRET_KEY:
+                print('[WEBHOOK] ERROR: PAYSTACK_SECRET_KEY is not set!')
+                self.send_response(500)
+                self.end_headers()
+                return
+            
+            # Compute expected signature
+            computed_signature = hmac.new(
+                PAYSTACK_SECRET_KEY.encode('utf-8'),
+                body,
+                hashlib.sha512
+            ).hexdigest()
+            
+            # Verify signature matches
+            if not hmac.compare_digest(computed_signature, paystack_signature):
+                print('[WEBHOOK] ERROR: Invalid signature - possible fraud attempt!')
+                self.send_response(401)
+                self.end_headers()
+                self.wfile.write(json.dumps({'error': 'Invalid signature'}).encode())
+                return
+            
+            print('[WEBHOOK] ✓ Signature verified successfully')
+            
+            # Parse webhook payload
+            webhook_data = json.loads(body.decode('utf-8'))
+            event = webhook_data.get('event')
+            data = webhook_data.get('data', {})
+            
+            print(f'[WEBHOOK] Event: {event}, Status: {data.get("status")}')
+            
+            # Only process successful charge events
+            if event == 'charge.success' and data.get('status') == 'success':
+                reference = data.get('reference')
+                print(f'[WEBHOOK] Processing successful payment for reference: {reference}')
+                
+                # Update order status from CANCELLED to PAID
+                update_url = f'{SUPABASE_URL}/rest/v1/orders?short_id=eq.{reference}'
+                update_headers = {
+                    'Authorization': f'Bearer {SUPABASE_ANON_KEY}',
+                    'Content-Type': 'application/json',
+                    'Prefer': 'return=representation'
+                }
+                update_body = json.dumps({'status': 'PAID'}).encode('utf-8')
+                
+                update_req = urllib.request.Request(update_url, data=update_body, headers=update_headers, method='PATCH')
+                update_response = urllib.request.urlopen(update_req, timeout=10)
+                print(f'[WEBHOOK] ✓ Order {reference} updated to PAID successfully')
+                
+                self.send_response(200)
+                self.end_headers()
+                self.wfile.write(json.dumps({'status': 'success'}).encode())
+            else:
+                print(f'[WEBHOOK] Event ignored: {event}')
+                self.send_response(200)
+                self.end_headers()
+                self.wfile.write(json.dumps({'status': 'ignored'}).encode())
+                
+        except Exception as e:
+            print(f'[WEBHOOK] Error: {e}')
+            import traceback
+            traceback.print_exc()
+            self.send_response(500)
+            self.end_headers()
+            self.wfile.write(json.dumps({'error': str(e)}).encode())
 
     def handle_verify_payment(self):
         """Verify payment with Paystack and update order status"""
