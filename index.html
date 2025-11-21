@@ -173,47 +173,50 @@
 
         .modal-content {
             background-color: white;
-            padding: 30px;
+            padding: 20px;
             border-radius: 10px;
-            width: 90%;
-            max-width: 400px;
+            width: 85%;
+            max-width: 360px;
             position: relative;
             box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+            max-height: 85vh;
+            overflow-y: auto;
         }
 
         .close-button {
             position: absolute;
-            top: 10px;
-            right: 20px;
-            font-size: 24px;
+            top: 8px;
+            right: 15px;
+            font-size: 22px;
             cursor: pointer;
             color: #333;
         }
 
         #order-form label {
             display: block;
-            margin-bottom: 5px;
+            margin-bottom: 4px;
             font-weight: bold;
+            font-size: 0.95em;
         }
 
         #order-form input {
             width: 95%;
-            padding: 10px;
-            margin-bottom: 20px;
+            padding: 8px;
+            margin-bottom: 12px;
             border: 1px solid #ccc;
             border-radius: 5px;
-            font-size: 1em;
+            font-size: 0.95em;
         }
 
         #order-form button {
             background-color: #28a745;
             color: white;
-            padding: 12px;
+            padding: 10px;
             border: none;
             border-radius: 5px;
             width: 100%;
             cursor: pointer;
-            font-size: 1.1em;
+            font-size: 1em;
         }
 
         .short-id-box {
@@ -293,20 +296,19 @@
             <span class="close-button" onclick="closeOrderModal()">&times;</span>
             <h2>Confirm Purchase</h2>
             
-            <p>You are purchasing:</p>
-            <h3 id="modal-package-name" style="color: #007bff;"></h3>
+            <h3 id="modal-package-name" style="color: #007bff; margin: 8px 0; font-size: 1.3em;"></h3>
             
-            <div style="background-color: #f8f9fa; padding: 15px; border-radius: 5px; margin: 15px 0; text-align: left;">
-                <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
-                    <span>Package Price:</span>
+            <div style="background-color: #f8f9fa; padding: 10px; border-radius: 5px; margin: 10px 0; text-align: left; font-size: 0.9em;">
+                <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
+                    <span>Price:</span>
                     <strong id="modal-base-price" style="color: #28a745;"></strong>
                 </div>
-                <div style="display: flex; justify-content: space-between; border-top: 1px solid #ddd; padding-top: 8px; margin-top: 8px;">
-                    <span>1.5% Processing Fee:</span>
+                <div style="display: flex; justify-content: space-between; border-top: 1px solid #ddd; padding-top: 5px; margin-top: 5px;">
+                    <span>1.5% Fee:</span>
                     <strong id="modal-fee-amount" style="color: #ff6b6b;"></strong>
                 </div>
-                <div style="display: flex; justify-content: space-between; font-size: 1.1em; font-weight: bold; margin-top: 10px; padding-top: 10px; border-top: 2px solid #ddd;">
-                    <span>Total to Pay:</span>
+                <div style="display: flex; justify-content: space-between; font-weight: bold; margin-top: 7px; padding-top: 7px; border-top: 2px solid #ddd;">
+                    <span>Total:</span>
                     <strong id="modal-total-price" style="color: #007bff;"></strong>
                 </div>
             </div>
