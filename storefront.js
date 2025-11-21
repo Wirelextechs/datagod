@@ -408,9 +408,11 @@ function showWaitingScreenWithPayment(shortId, packageName, email, amount) {
  */
 async function proceedToPaystack(reference, email, amount) {
     console.log('[PAYSTACK] Initializing payment for:', reference);
+    console.log('[PAYSTACK] Email:', email, 'Amount:', amount);
     
     try {
         // Call backend to initialize Paystack transaction
+        console.log('[PAYSTACK] Sending request to /api/initialize-payment...');
         const response = await fetch('/api/initialize-payment', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -421,7 +423,17 @@ async function proceedToPaystack(reference, email, amount) {
             })
         });
         
+        console.log('[PAYSTACK] Response status:', response.status, response.statusText);
+        
+        if (!response.ok) {
+            const errorText = await response.text();
+            console.error('[PAYSTACK] HTTP error response:', errorText);
+            alert(`Payment initialization failed (${response.status}). Please try again or contact support.`);
+            return;
+        }
+        
         const data = await response.json();
+        console.log('[PAYSTACK] Response data:', data);
         
         if (data.success && data.authorization_url) {
             console.log('[PAYSTACK] ✓ Payment initialized. Opening checkout in new tab...');
@@ -441,8 +453,10 @@ async function proceedToPaystack(reference, email, amount) {
             alert('Failed to initialize payment: ' + (data.error || 'Unknown error'));
         }
     } catch (error) {
-        console.error('[PAYSTACK] Error:', error);
-        alert('Error connecting to payment system. Please try again.');
+        console.error('[PAYSTACK] Caught error:', error);
+        console.error('[PAYSTACK] Error name:', error.name);
+        console.error('[PAYSTACK] Error message:', error.message);
+        alert(`Error connecting to payment system: ${error.message}. Please check your internet connection and try again.`);
     }
 }
 
