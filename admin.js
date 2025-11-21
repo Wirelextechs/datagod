@@ -53,7 +53,7 @@ async function fetchAllOrders() {
 async function updateOrderStatus(orderId, newStatus) {
     const { error } = await supabaseClient
         .from('orders')
-        .update({ status: newStatus, updated_at: new Date().toISOString() })
+        .update({ status: newStatus })
         .eq('id', orderId);
 
     if (error) {
@@ -115,8 +115,7 @@ async function savePackage(pkg) {
         package_name: pkg.packageName,
         data_value_gb: pkg.dataValueGB,
         price_ghs: pkg.priceGHS,
-        is_enabled: pkg.isEnabled,
-        updated_at: new Date().toISOString()
+        is_enabled: pkg.isEnabled
     };
     
     // Use upsert to handle both insert (new) and update (existing)
