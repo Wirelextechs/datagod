@@ -14,6 +14,12 @@ SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS
 # Paystack secret key (from environment)
 PAYSTACK_SECRET_KEY = os.environ.get('PAYSTACK_SECRET_KEY')
 
+# Log startup info
+if not PAYSTACK_SECRET_KEY:
+    print('[ERROR] PAYSTACK_SECRET_KEY is not set in environment variables!')
+else:
+    print(f'[STARTUP] PAYSTACK_SECRET_KEY loaded (length: {len(PAYSTACK_SECRET_KEY)})')
+
 class NoCacheHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
     def end_headers(self):
         self.send_header('Cache-Control', 'no-cache, no-store, must-revalidate')
@@ -57,6 +63,17 @@ class NoCacheHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
                 self.wfile.write(json.dumps({'success': False, 'error': 'Missing reference'}).encode())
                 return
             
+            # Check if secret key exists
+            if not PAYSTACK_SECRET_KEY:
+                print('[VERIFY] ERROR: PAYSTACK_SECRET_KEY is not set!')
+                self.send_response(500)
+                self.end_headers()
+                self.wfile.write(json.dumps({
+                    'success': False,
+                    'error': 'Server configuration error: PAYSTACK_SECRET_KEY not set'
+                }).encode())
+                return
+            
             # Verify with Paystack API
             print(f'[VERIFY] Calling Paystack API for reference: {reference}')
             verification_url = f'https://api.paystack.co/transaction/verify/{reference}'
@@ -64,6 +81,9 @@ class NoCacheHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
                 'Authorization': f'Bearer {PAYSTACK_SECRET_KEY}',
                 'Content-Type': 'application/json'
             }
+            
+            print(f'[VERIFY] Using URL: {verification_url}')
+            print(f'[VERIFY] Auth header present: {bool(headers["Authorization"])}')
             
             req = urllib.request.Request(verification_url, headers=headers, method='GET')
             response = urllib.request.urlopen(req, timeout=10)
@@ -105,12 +125,13 @@ class NoCacheHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
                 }).encode())
                 
         except urllib.error.HTTPError as e:
-            print(f'[VERIFY] Paystack API error: {e}')
+            print(f'[VERIFY] HTTP Error {e.code}: {e.reason}')
+            print(f'[VERIFY] Error response: {e.read().decode("utf-8")}')
             self.send_response(400)
             self.end_headers()
             self.wfile.write(json.dumps({
                 'success': False,
-                'error': f'Payment verification failed: {str(e)}'
+                'error': f'Payment verification failed: HTTP {e.code}'
             }).encode())
         except Exception as e:
             print(f'[VERIFY] Unexpected error: {e}')
