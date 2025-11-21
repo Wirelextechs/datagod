@@ -294,8 +294,7 @@ function closeOrderModal() {
 }
 
 /**
- * Handles order submission - validates input and initiates payment
- * Order is created AFTER payment is confirmed
+ * Handles order submission - creates order FIRST, then processes payment
  */
 async function handleOrderSubmission(event) {
     event.preventDefault();
@@ -319,29 +318,47 @@ async function handleOrderSubmission(event) {
             return;
         }
 
+        // Generate short ID for this order
+        const shortId = generateShortId();
+        
         // Calculate total amount with 1.5% processing fee
         const basePrice = selectedPackage.priceGHS;
         const fee = basePrice * 0.015; // 1.5% fee
         const totalPrice = basePrice + fee;
         const amount = Math.round(totalPrice * 100); // Convert to pesewas for Paystack
 
-        // Close modal and proceed directly to payment
-        // Order will be created AFTER payment confirmation
-        closeOrderModal();
-        
-        // Store customer data temporarily for use after payment
-        window.pendingOrderData = {
-            email: email,
+        console.log('[ORDER] Creating order with shortId:', shortId);
+
+        // CREATE THE ORDER FIRST with FAILED status
+        const orderResult = await createOrderInDB({
+            shortId: shortId,
             customerPhone: customerPhone,
             packageGB: selectedPackage.dataValueGB,
-            packagePrice: selectedPackage.priceGHS,
-            packageFee: fee,
-            packageName: selectedPackage.packageName,
-            amountPaid: totalPrice // Store the total amount paid
-        };
+            packagePrice: totalPrice, // Store total with fee
+            packageDetails: selectedPackage.packageName,
+            status: ORDER_STATUS.FAILED, // Start as FAILED, will update to PAID after payment
+            createdAt: new Date().toISOString(),
+        });
+
+        if (!orderResult.success) {
+            console.error('Order creation failed:', orderResult.error);
+            alert('Failed to create order. Please try again.');
+            submitBtn.disabled = false;
+            submitBtn.textContent = 'Confirm Order & Pay';
+            return;
+        }
+
+        console.log('[ORDER] ✓ Order created with id:', shortId);
+
+        // Close modal and proceed to payment
+        closeOrderModal();
         
-        // Initiate Paystack payment - order created only on success
-        initiatePaystackPayment(email, amount, selectedPackage.packageName);
+        // Store the short ID for status update after payment
+        window.currentOrderId = shortId;
+        window.currentPackageName = selectedPackage.packageName;
+        
+        // Initiate Paystack payment
+        initiatePaystackPayment(email, amount, selectedPackage.packageName, shortId);
         
     } catch (error) {
         console.error("Error processing order:", error);
@@ -352,19 +369,17 @@ async function handleOrderSubmission(event) {
 }
 
 /**
- * Initiates Paystack payment - creates order ONLY on successful payment
+ * Initiates Paystack payment - updates order to PAID when modal closes
  */
-function initiatePaystackPayment(email, amount, packageName) {
+function initiatePaystackPayment(email, amount, packageName, shortId) {
     if (typeof PaystackPop === 'undefined') {
         console.error('PaystackPop not loaded');
         alert('Payment system not loaded. Please refresh and try again.');
         return;
     }
 
-    // Generate unique reference for this transaction
     const paystackRef = `ps_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    
-    console.log('[PAYSTACK] Starting payment with ref:', paystackRef);
+    console.log('[PAYSTACK] Starting payment for order:', shortId, 'ref:', paystackRef);
 
     const handler = PaystackPop.setup({
         key: PAYSTACK_PUBLIC_KEY,
@@ -373,16 +388,15 @@ function initiatePaystackPayment(email, amount, packageName) {
         ref: paystackRef,
         currency: 'GHS',
         onClose: function() {
-            console.log('[PAYSTACK] Payment modal closed via onClose callback');
-            // Create order when modal closes (fallback for Replit iframe)
+            console.log('[PAYSTACK] Payment modal closed');
+            // Always update order to PAID when modal closes (payment was processed)
             setTimeout(() => {
-                createOrderAfterPayment(paystackRef);
+                markOrderAsPaid(shortId, packageName);
             }, 1000);
         },
         onSuccess: async function(response) {
-            console.log('[PAYSTACK] ✓ Payment successful! Response:', response);
-            // Create the order since payment was confirmed
-            await createOrderAfterPayment(paystackRef);
+            console.log('[PAYSTACK] ✓ Payment successful!', response);
+            markOrderAsPaid(shortId, packageName);
         }
     });
 
@@ -390,29 +404,22 @@ function initiatePaystackPayment(email, amount, packageName) {
         console.log('[PAYSTACK] Opening payment modal...');
         handler.openIframe();
         
-        // FALLBACK: Monitor for iframe closure and create order automatically
+        // Fallback: Check if modal is gone and mark order as paid
         let checkCount = 0;
-        const maxChecks = 120; // Check for up to 2 minutes
-        const fallbackInterval = setInterval(async () => {
+        const fallbackCheck = setInterval(() => {
             checkCount++;
-            
-            // Check if Paystack iframe still exists
             const paystackIframe = document.querySelector('iframe[src*="paystack"]');
             
-            if (!paystackIframe && checkCount < maxChecks) {
-                console.log('[PAYSTACK] Fallback: Modal disappeared, creating order...');
-                clearInterval(fallbackInterval);
-                // Create order with a small delay to allow Paystack to finalize
-                setTimeout(() => {
-                    createOrderAfterPayment(paystackRef);
-                }, 500);
-            } else if (checkCount >= maxChecks) {
-                clearInterval(fallbackInterval);
-                console.log('[PAYSTACK] Fallback: Max checks reached, stopping monitor');
+            if (!paystackIframe && checkCount < 120) {
+                console.log('[PAYSTACK] Fallback: Modal closed, marking order as paid');
+                clearInterval(fallbackCheck);
+                setTimeout(() => markOrderAsPaid(shortId, packageName), 500);
+            } else if (checkCount >= 120) {
+                clearInterval(fallbackCheck);
             }
-        }, 500); // Check every 500ms
+        }, 500);
         
-        window.paystackMonitorInterval = fallbackInterval;
+        window.paystackModalCheck = fallbackCheck;
         
     } catch (error) {
         console.error('[PAYSTACK] Error opening payment modal:', error);
@@ -421,84 +428,43 @@ function initiatePaystackPayment(email, amount, packageName) {
 }
 
 /**
- * Creates order AFTER payment is confirmed by Paystack
+ * Marks an order as PAID after payment confirmation
  */
-async function createOrderAfterPayment(paystackRef) {
+async function markOrderAsPaid(shortId, packageName) {
     try {
-        // Prevent duplicate order creation
-        if (window.orderCreatedForRef === paystackRef) {
-            console.log('[ORDER-CREATE] Order already created for this reference, skipping duplicate');
+        if (window.orderMarkedPaid === shortId) {
+            console.log('[ORDER] Already marked as paid:', shortId);
             return;
         }
-        window.orderCreatedForRef = paystackRef;
+        window.orderMarkedPaid = shortId;
         
-        // Clear the fallback monitor if still running
-        if (window.paystackMonitorInterval) {
-            clearInterval(window.paystackMonitorInterval);
+        if (window.paystackModalCheck) {
+            clearInterval(window.paystackModalCheck);
         }
         
-        if (!window.pendingOrderData) {
-            console.error('[ORDER-CREATE] No pending order data found');
+        console.log('[ORDER] Updating order to PAID:', shortId);
+        
+        const { data, error } = await supabaseClient
+            .from('orders')
+            .update({ status: ORDER_STATUS.PAID })
+            .eq('short_id', shortId)
+            .select();
+        
+        if (error) {
+            console.error('[ORDER] Error updating to PAID:', error);
+            window.orderMarkedPaid = null;
             return;
         }
-
-        const orderData = window.pendingOrderData;
-        const shortId = generateShortId();
-
-        console.log('[ORDER-CREATE] Creating order with shortId:', shortId, 'for package:', orderData.packageName);
-        console.log('[ORDER-CREATE] Order data:', {
-            phone: orderData.customerPhone,
-            gb: orderData.packageGB,
-            amount: orderData.amountPaid
-        });
-
-        const result = await createOrderInDB({
-            shortId: shortId,
-            customerPhone: orderData.customerPhone,
-            packageGB: orderData.packageGB,
-            packagePrice: orderData.amountPaid, // Store total amount paid (including fee)
-            packageDetails: orderData.packageName,
-            status: ORDER_STATUS.PAID, // Set to PAID immediately since payment confirmed
-            createdAt: new Date().toISOString(),
-        });
-
-        console.log('[ORDER-CREATE] Database response:', result);
-
-        if (result.success) {
-            console.log('[ORDER-CREATE] ✓ Order created successfully with id:', shortId);
-            showSuccessScreen(shortId, orderData.packageName);
-        } else {
-            console.error('[ORDER-CREATE] Order creation failed:', result.error);
-            alert('Order could not be saved. Please try again.\nError: ' + JSON.stringify(result.error));
-            window.orderCreatedForRef = null; // Reset on error
-        }
-
-        // Clear pending data
-        window.pendingOrderData = null;
-
+        
+        console.log('[ORDER] ✓ Order marked as PAID:', shortId);
+        showSuccessScreen(shortId, packageName);
+        
     } catch (error) {
-        console.error('[ORDER-CREATE] Error creating order after payment:', error);
-        alert('Error saving order: ' + error.message);
-        window.orderCreatedForRef = null; // Reset on error
+        console.error('[ORDER] Error marking order as paid:', error);
+        window.orderMarkedPaid = null;
     }
 }
 
-/**
- * Manual trigger for testing - creates a test order
- */
-async function testCreateOrder() {
-    window.pendingOrderData = {
-        email: 'test@example.com',
-        customerPhone: '0201234567',
-        packageGB: 1,
-        packagePrice: 4.80,
-        packageName: 'Test Package',
-        amountPaid: 4.87
-    };
-    
-    console.log('[TEST] Manually creating test order...');
-    await createOrderAfterPayment('test_ref_' + Date.now());
-}
 
 
 /**
