@@ -109,6 +109,7 @@ class NoCacheHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
                 update_url = f'{SUPABASE_URL}/rest/v1/orders?short_id=eq.{reference}'
                 update_headers = {
                     'Authorization': f'Bearer {SUPABASE_SERVICE_ROLE_KEY}',
+                    'apikey': SUPABASE_SERVICE_ROLE_KEY,
                     'Content-Type': 'application/json',
                     'Prefer': 'return=representation'
                 }
@@ -189,6 +190,7 @@ class NoCacheHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
                 update_url = f'{SUPABASE_URL}/rest/v1/orders?short_id=eq.{reference}'
                 update_headers = {
                     'Authorization': f'Bearer {SUPABASE_SERVICE_ROLE_KEY}',
+                    'apikey': SUPABASE_SERVICE_ROLE_KEY,
                     'Content-Type': 'application/json',
                     'Prefer': 'return=representation'
                 }
