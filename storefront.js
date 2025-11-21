@@ -4,7 +4,8 @@
 const SUPABASE_URL = 'https://sjvxlvsmjwpfxlkjjvod.supabase.co'; 
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNqdnhsdnNtandwZnhsa2pqdm9kIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjM0MzM1NTksImV4cCI6MjA3OTAwOTU1OX0.VmrDs5I6zn9wY1VUAsk0f1IzcvjLI7oe_BT5o1CT8J0'; 
 
-const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+const { createClient } = supabase;
+const supabaseClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 // Enum for clear, controlled status values (Matches database status)
 const ORDER_STATUS = { PAID: 'PAID', PROCESSING: 'PROCESSING', FULFILLED: 'FULFILLED', CANCELLED: 'CANCELLED' };
@@ -24,7 +25,7 @@ function generateShortId() {
  * Fetches enabled packages, sorted by dataValueGB (Ascending).
  */
 async function fetchPackages() {
-    const { data, error } = await supabase
+    const { data, error } = await supabaseClient
         .from('packages')
         .select('id, package_name, data_value_gb, price_ghs')
         .eq('is_enabled', true)
@@ -48,7 +49,7 @@ async function fetchPackages() {
  * Fetches the platform settings (WhatsApp Link).
  */
 async function fetchSettings() {
-    const { data, error } = await supabase
+    const { data, error } = await supabaseClient
         .from('settings')
         .select('whats_app_link')
         .limit(1)
@@ -66,7 +67,7 @@ async function fetchSettings() {
  * Creates a new order transaction in the database.
  */
 async function createOrderInDB(orderData) {
-    const { data, error } = await supabase
+    const { data, error } = await supabaseClient
         .from('orders')
         .insert([{
             short_id: orderData.shortId,
@@ -90,7 +91,7 @@ async function createOrderInDB(orderData) {
  * Queries the database to find an order by Short ID.
  */
 async function findOrderByShortId(shortId) {
-    const { data, error } = await supabase
+    const { data, error } = await supabaseClient
         .from('orders')
         .select('package_details, status') // Only fetch needed fields
         .eq('short_id', shortId)

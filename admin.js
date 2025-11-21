@@ -6,7 +6,8 @@ const SUPABASE_URL = 'https://sjvxlvsmjwpfxlkjjvod.supabase.co';
 // you would use a separate service key or Row Level Security (RLS) on Supabase.
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNqdnhsdnNtandwZnhsa2pqdm9kIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjM0MzM1NTksImV4cCI6MjA3OTAwOTU1OX0.VmrDs5I6zn9wY1VUAsk0f1IzcvjLI7oe_BT5o1CT8J0'; 
 
-const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+const { createClient } = supabase;
+const supabaseClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 // Enum for clear, controlled status values (Matches database status)
 const OrderStatus = {
@@ -22,7 +23,7 @@ const OrderStatus = {
  * Fetches the list of all orders, sorted by newest first.
  */
 async function fetchAllOrders() {
-    const { data, error } = await supabase
+    const { data, error } = await supabaseClient
         .from('orders')
         .select('*')
         .order('created_at', { ascending: false });
@@ -50,7 +51,7 @@ async function fetchAllOrders() {
  * Updates a single order's status in the database.
  */
 async function updateOrderStatus(orderId, newStatus) {
-    const { error } = await supabase
+    const { error } = await supabaseClient
         .from('orders')
         .update({ status: newStatus, updated_at: new Date().toISOString() })
         .eq('id', orderId);
@@ -66,7 +67,7 @@ async function updateOrderStatus(orderId, newStatus) {
  * Fetches the admin token from the database settings.
  */
 async function fetchAdminToken() {
-    const { data, error } = await supabase
+    const { data, error } = await supabaseClient
         .from('settings')
         .select('admin_token')
         .limit(1)
@@ -85,7 +86,7 @@ async function fetchAdminToken() {
  * Fetches all packages (for the admin editor).
  */
 async function fetchAllPackages() {
-    const { data, error } = await supabase
+    const { data, error } = await supabaseClient
         .from('packages')
         .select('*')
         .order('data_value_gb', { ascending: true });
@@ -119,7 +120,7 @@ async function savePackage(pkg) {
     };
     
     // Use upsert to handle both insert (new) and update (existing)
-    const { error } = await supabase
+    const { error } = await supabaseClient
         .from('packages')
         .upsert(packageData);
 
@@ -135,7 +136,7 @@ async function savePackage(pkg) {
  * Deletes a package.
  */
 async function deletePackage(pkgId) {
-    const { error } = await supabase
+    const { error } = await supabaseClient
         .from('packages')
         .delete()
         .eq('id', pkgId);
@@ -152,7 +153,7 @@ async function deletePackage(pkgId) {
  * Fetches the current platform settings.
  */
 async function fetchSettings() {
-    const { data, error } = await supabase
+    const { data, error } = await supabaseClient
         .from('settings')
         .select('whats_app_link')
         .limit(1)
@@ -169,7 +170,7 @@ async function fetchSettings() {
  * Updates the platform settings (WhatsApp link).
  */
 async function updateSettings(newSettings) {
-    const { error } = await supabase
+    const { error } = await supabaseClient
         .from('settings')
         // We know the ID of the single settings row is 1
         .update({ whats_app_link: newSettings.whatsAppLink }) 
