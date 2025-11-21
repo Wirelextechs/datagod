@@ -143,6 +143,12 @@ The project uses a Python HTTP server configured to:
   - Removed unreliable Paystack `onSuccess` callback (doesn't work in iframes)
   - Waiting screen now shows after ANY payment modal close (success or cancel)
   - Users can always click "I Have Paid" to verify payment status
+- **✅ IFRAME BLOCKING FIX: Switched to new-tab payment flow**:
+  - Added `/api/initialize-payment` endpoint to initialize Paystack transactions
+  - Payment now opens in a NEW BROWSER TAB instead of blocked iframe
+  - Completely eliminates ERR_BLOCKED_BY_RESPONSE errors
+  - Improved UX: Order confirmation screen shows immediately with tracking ID
+  - Users click "Proceed to Payment" → Opens Paystack in new tab → Complete payment → Return and click "I Have Paid"
 
 ## User Preferences
 - None specified yet

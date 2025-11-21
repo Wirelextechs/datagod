@@ -52,6 +52,9 @@ class NoCacheHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
         # Payment verification endpoint
         elif parsed_path.path == '/api/verify-payment':
             self.handle_verify_payment()
+        # Payment initialization endpoint
+        elif parsed_path.path == '/api/initialize-payment':
+            self.handle_initialize_payment()
         else:
             self.send_response(404)
             self.end_headers()
@@ -222,6 +225,90 @@ class NoCacheHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
             }).encode())
         except Exception as e:
             print(f'[VERIFY] Unexpected error: {e}')
+            import traceback
+            traceback.print_exc()
+            self.send_response(500)
+            self.end_headers()
+            self.wfile.write(json.dumps({
+                'success': False,
+                'error': str(e)
+            }).encode())
+
+    def handle_initialize_payment(self):
+        """Initialize Paystack payment and return checkout URL"""
+        try:
+            # Read request body
+            content_length = int(self.headers.get('Content-Length', 0))
+            body = self.rfile.read(content_length).decode('utf-8')
+            request_data = json.loads(body)
+            
+            email = request_data.get('email')
+            amount = request_data.get('amount')  # Amount in pesewas
+            reference = request_data.get('reference')
+            
+            print(f'[INIT] Initializing payment for {email}, amount: {amount}, ref: {reference}')
+            
+            if not all([email, amount, reference]):
+                self.send_response(400)
+                self.end_headers()
+                self.wfile.write(json.dumps({
+                    'success': False,
+                    'error': 'Missing required fields'
+                }).encode())
+                return
+            
+            if not PAYSTACK_SECRET_KEY:
+                print('[INIT] ERROR: PAYSTACK_SECRET_KEY is not set!')
+                self.send_response(500)
+                self.end_headers()
+                self.wfile.write(json.dumps({
+                    'success': False,
+                    'error': 'Server configuration error'
+                }).encode())
+                return
+            
+            # Call Paystack API to initialize transaction
+            paystack_url = 'https://api.paystack.co/transaction/initialize'
+            paystack_headers = {
+                'Authorization': f'Bearer {PAYSTACK_SECRET_KEY}',
+                'Content-Type': 'application/json'
+            }
+            paystack_body = json.dumps({
+                'email': email,
+                'amount': amount,
+                'reference': reference,
+                'currency': 'GHS',
+                'callback_url': f'https://datagod.replit.app/?payment_ref={reference}'
+            }).encode('utf-8')
+            
+            req = urllib.request.Request(paystack_url, data=paystack_body, headers=paystack_headers, method='POST')
+            response = urllib.request.urlopen(req, timeout=10)
+            paystack_response = json.loads(response.read().decode('utf-8'))
+            
+            print(f'[INIT] Paystack response: {paystack_response.get("status")}')
+            
+            if paystack_response.get('status'):
+                authorization_url = paystack_response.get('data', {}).get('authorization_url')
+                print(f'[INIT] ✓ Payment initialized. Authorization URL ready.')
+                
+                self.send_response(200)
+                self.end_headers()
+                self.wfile.write(json.dumps({
+                    'success': True,
+                    'authorization_url': authorization_url,
+                    'reference': reference
+                }).encode())
+            else:
+                print(f'[INIT] Paystack initialization failed')
+                self.send_response(400)
+                self.end_headers()
+                self.wfile.write(json.dumps({
+                    'success': False,
+                    'error': 'Payment initialization failed'
+                }).encode())
+                
+        except Exception as e:
+            print(f'[INIT] Error: {e}')
             import traceback
             traceback.print_exc()
             self.send_response(500)

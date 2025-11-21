@@ -334,15 +334,11 @@ async function handleOrderSubmission(event) {
 
         console.log('[ORDER] ✓ Order created with id:', shortId);
 
-        // Close modal and proceed to payment
+        // Close modal
         closeOrderModal();
         
-        // Store the short ID for status update after payment
-        window.currentOrderId = shortId;
-        window.currentPackageName = selectedPackage.packageName;
-        
-        // Initiate Paystack payment
-        initiatePaystackPayment(email, amount, selectedPackage.packageName, shortId);
+        // Show waiting screen immediately with payment instructions
+        showWaitingScreenWithPayment(shortId, selectedPackage.packageName, email, amount);
         
     } catch (error) {
         console.error("Error processing order:", error);
@@ -353,36 +349,94 @@ async function handleOrderSubmission(event) {
 }
 
 /**
- * Initiates Paystack payment - updates order to PAID when modal closes
+ * Shows waiting screen with payment button - avoids iframe blocking issues
  */
-function initiatePaystackPayment(email, amount, packageName, shortId) {
-    if (typeof PaystackPop === 'undefined') {
-        console.error('PaystackPop not loaded');
-        alert('Payment system not loaded. Please refresh and try again.');
-        return;
+function showWaitingScreenWithPayment(shortId, packageName, email, amount) {
+    console.log('[WAITING] Showing payment screen for order:', shortId);
+    
+    const modal = document.getElementById('order-modal');
+    if (modal) {
+        modal.style.display = 'none';
     }
+    
+    const mainContent = document.getElementById('main-content');
+    if (mainContent) {
+        mainContent.innerHTML = `
+            <div class="waiting-screen" style="z-index: 9999; position: relative; background: white; padding: 30px; text-align: center; max-width: 500px; margin: 40px auto; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+                <div style="font-size: 3em; margin-bottom: 20px;">📦</div>
+                <h2 style="color: #007bff; margin-bottom: 15px;">Order Created Successfully!</h2>
+                <p style="margin-bottom: 10px;">Your tracking ID:</p>
+                <div style="background: #f0f8ff; padding: 15px; border-radius: 8px; margin: 20px 0;">
+                    <strong style="font-size: 2.5em; color: #007bff;">${shortId}</strong>
+                </div>
+                <p style="color: #666; margin-bottom: 10px;"><strong>Package:</strong> ${packageName}</p>
+                <p style="color: #666; margin-bottom: 25px;"><strong>Amount:</strong> GHS ${(amount / 100).toFixed(2)}</p>
+                
+                <div style="background: #fff3cd; border-left: 4px solid #ffc107; padding: 15px; margin: 20px 0; text-align: left;">
+                    <p style="margin: 0; color: #856404;"><strong>⚠️ Important:</strong> Save your tracking ID <strong>${shortId}</strong> before proceeding to payment!</p>
+                </div>
+                
+                <button 
+                    onclick="proceedToPaystack('${shortId}', '${email}', ${amount})"
+                    style="background-color: #007bff; color: white; padding: 15px 40px; border: none; border-radius: 5px; font-size: 1.1em; cursor: pointer; font-weight: bold; box-shadow: 0 2px 4px rgba(0,0,0,0.2); margin-bottom: 15px; width: 100%;">
+                    💳 Proceed to Payment
+                </button>
+                
+                <p style="color: #999; margin: 20px 0; font-size: 0.9em;">
+                    After completing payment, return here and click the button below to verify:
+                </p>
+                
+                <button 
+                    id="verify-payment-btn" 
+                    onclick="verifyManualPayment('${shortId}', '${packageName}')"
+                    style="background-color: #28a745; color: white; padding: 12px 30px; border: none; border-radius: 5px; font-size: 1em; cursor: pointer; font-weight: bold; width: 100%;">
+                    ✓ I Have Paid - Verify Now
+                </button>
+                
+                <button 
+                    onclick="location.reload()" 
+                    style="background-color: #6c757d; color: white; padding: 10px 20px; border: none; border-radius: 5px; margin-top: 15px; cursor: pointer;">
+                    ← Back to Store
+                </button>
+            </div>
+        `;
+    }
+}
 
-    const paystackRef = shortId; // Use order short ID as Paystack reference for easy tracking
-    console.log('[PAYSTACK] Starting payment for order:', shortId, 'using ref:', paystackRef);
-
-    const handler = PaystackPop.setup({
-        key: PAYSTACK_PUBLIC_KEY,
-        email: email,
-        amount: amount,
-        ref: paystackRef,
-        currency: 'GHS',
-        onClose: function() {
-            console.log('[PAYSTACK] Payment modal closed - showing verification screen');
-            showWaitingScreen(shortId, packageName);
-        }
-    });
-
+/**
+ * Opens Paystack checkout in a NEW BROWSER TAB (avoids iframe blocking)
+ */
+async function proceedToPaystack(reference, email, amount) {
+    console.log('[PAYSTACK] Initializing payment for:', reference);
+    
     try {
-        console.log('[PAYSTACK] Opening payment modal...');
-        handler.openIframe();
+        // Call backend to initialize Paystack transaction
+        const response = await fetch('/api/initialize-payment', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                email: email,
+                amount: amount,
+                reference: reference
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success && data.authorization_url) {
+            console.log('[PAYSTACK] ✓ Payment initialized. Opening checkout in new tab...');
+            
+            // Open Paystack checkout in NEW BROWSER TAB (no iframe = no blocking!)
+            window.open(data.authorization_url, '_blank');
+            
+            alert('Payment window opened in a new tab. Complete your payment there, then return here and click "I Have Paid - Verify Now".');
+        } else {
+            console.error('[PAYSTACK] Initialization failed:', data.error);
+            alert('Failed to initialize payment: ' + (data.error || 'Unknown error'));
+        }
     } catch (error) {
-        console.error('[PAYSTACK] Error opening payment modal:', error);
-        alert('Error opening payment. Please try again.');
+        console.error('[PAYSTACK] Error:', error);
+        alert('Error connecting to payment system. Please try again.');
     }
 }
 
