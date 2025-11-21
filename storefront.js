@@ -8,7 +8,7 @@ const { createClient } = supabase;
 const supabaseClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 // --- PAYSTACK INITIALIZATION ---
-const PAYSTACK_PUBLIC_KEY = 'pk_test_af33df7aad299f46565a2f5fc2adb221e22122d6';
+const PAYSTACK_PUBLIC_KEY = 'pk_live_7e49a5058739c7db12015d0a8ca0c27917110ce0';
 
 // Enum for clear, controlled status values (Matches database status)
 const ORDER_STATUS = { CANCELLED: 'CANCELLED', PAID: 'PAID', PROCESSING: 'PROCESSING', FULFILLED: 'FULFILLED' };
