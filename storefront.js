@@ -337,41 +337,33 @@ function initiatePaystackPayment(email, amount, ref, packageName) {
         console.log('Opening Paystack payment...');
         handler.openIframe();
         
-        // Use MutationObserver to detect when Paystack elements are removed
-        const observer = new MutationObserver((mutations) => {
-            // Look for Paystack overlay or iframe removal
-            const paystackOverlay = document.querySelector('.paystack-overlay');
-            const paystackFrame = document.querySelector('iframe[src*="paystack"], iframe[name*="paystack"]');
+        // Start checking for Paystack closure with aggressive polling
+        let checkCount = 0;
+        const checkInterval = setInterval(() => {
+            checkCount++;
+            console.log('Checking for Paystack... count:', checkCount);
             
-            if (!paystackOverlay && !paystackFrame) {
-                console.log('Paystack modal removed from DOM, showing success screen');
-                observer.disconnect();
-                setTimeout(() => {
-                    showSuccessScreen(ref, packageName);
-                }, 300);
-            }
-        });
-        
-        // Observe the entire document body for changes
-        observer.observe(document.body, {
-            childList: true,
-            subtree: true
-        });
-        
-        // Fallback timeout in case observer doesn't catch it
-        setTimeout(() => {
-            observer.disconnect();
-            // Check one more time if Paystack is still open
-            const paystackStillOpen = document.querySelector('.paystack-overlay, iframe[src*="paystack"], iframe[name*="paystack"]');
-            if (!paystackStillOpen) {
-                console.log('Fallback timeout: showing success screen');
+            // Look for any Paystack elements
+            const paystackElements = document.querySelectorAll('iframe[src*="paystack"], iframe[name*="paystack"], .paystack-overlay, div[class*="paystack"]');
+            
+            console.log('Paystack elements found:', paystackElements.length);
+            
+            // If Paystack is gone and we've checked at least 3 times
+            if (paystackElements.length === 0 && checkCount > 3) {
+                console.log('Paystack closed detected! Showing success screen');
+                clearInterval(checkInterval);
                 showSuccessScreen(ref, packageName);
             }
-        }, 180000); // 3 minute absolute timeout
+            
+            // Stop after 3 minutes
+            if (checkCount > 180) {
+                console.log('Max checks reached, stopping');
+                clearInterval(checkInterval);
+            }
+        }, 1000); // Check every second
         
     } catch (error) {
         console.error('Error opening Paystack:', error);
-        // Fallback: show success screen since order exists in DB
         setTimeout(() => {
             showSuccessScreen(ref, packageName);
         }, 500);
