@@ -422,55 +422,6 @@ async function markPaymentAsCompleted(shortId) {
     }
 }
 
-
-/**
- * Verifies payment with backend server and updates order status
- */
-async function verifyPaymentWithServer(ref, packageName) {
-    try {
-        console.log('[VERIFY-CALL] Calling verification endpoint for ref:', ref);
-        const response = await fetch('/api/verify-payment', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({ reference: ref })
-        });
-        
-        console.log('[VERIFY-CALL] Response status:', response.status);
-        const result = await response.json();
-        console.log('[VERIFY-CALL] Response result:', result);
-        
-        if (result.success) {
-            console.log('✓ Payment verified by server, showing success screen');
-            if (window.paymentPollingInterval) {
-                clearInterval(window.paymentPollingInterval);
-            }
-            showSuccessScreen(ref, packageName);
-        } else {
-            console.log('Payment verification failed:', result.error);
-        }
-    } catch (error) {
-        console.error('[VERIFY-CALL] Error verifying payment:', error);
-    }
-}
-
-/**
- * Verifies payment status and shows success screen
- */
-async function verifyPaymentAndShowSuccess(shortId, packageName) {
-    // Check if order exists and is marked as PAID in Supabase
-    const { data, error } = await supabaseClient
-        .from('orders')
-        .select('status')
-        .eq('short_id', shortId)
-        .single();
-    
-    if (data && data.status === ORDER_STATUS.PAID) {
-        showSuccessScreen(shortId, packageName);
-    }
-}
-
 /**
  * Displays the success/confirmation screen.
  */
