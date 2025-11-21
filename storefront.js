@@ -287,36 +287,29 @@ async function handleOrderSubmission(event) {
         const result = await createOrderInDB(orderData);
         
         if (result.success) {
-            // Create a form to submit to Paystack
-            const form = document.createElement('form');
-            form.method = 'POST';
-            form.action = 'https://checkout.paystack.com/';
-            form.style.display = 'none';
-
-            const fields = {
-                key: PAYSTACK_PUBLIC_KEY,
-                email: email,
-                amount: amount.toString(),
-                ref: shortId,
-                currency: 'GHS',
-                metadata: JSON.stringify({
-                    shortId: shortId,
-                    customerPhone: customerPhone,
-                    packageName: selectedPackage.packageName,
-                    packageGB: selectedPackage.dataValueGB,
-                })
-            };
-
-            for (const [key, value] of Object.entries(fields)) {
-                const input = document.createElement('input');
-                input.type = 'hidden';
-                input.name = key;
-                input.value = value;
-                form.appendChild(input);
+            // Initialize Paystack popup
+            if (typeof PaystackPop === 'undefined') {
+                alert('Payment system not loaded. Please refresh and try again.');
+                return;
             }
 
-            document.body.appendChild(form);
-            form.submit();
+            const handler = PaystackPop.setup({
+                key: PAYSTACK_PUBLIC_KEY,
+                email: email,
+                amount: amount,
+                ref: shortId,
+                currency: 'GHS',
+                onClose: function() {
+                    console.log('Payment window closed.');
+                },
+                onSuccess: function(response) {
+                    console.log('Payment successful:', response);
+                    closeOrderModal();
+                    showSuccessScreen(shortId, selectedPackage.packageName);
+                }
+            });
+            
+            handler.openIframe();
         } else {
             alert('Failed to create order. Please try again.');
         }
