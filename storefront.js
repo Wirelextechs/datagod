@@ -11,7 +11,7 @@ const supabaseClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 const PAYSTACK_PUBLIC_KEY = 'pk_test_af33df7aad299f46565a2f5fc2adb221e22122d6';
 
 // Enum for clear, controlled status values (Matches database status)
-const ORDER_STATUS = { PROCESSING: 'PROCESSING', PAID: 'PAID', FULFILLED: 'FULFILLED', CANCELLED: 'CANCELLED' };
+const ORDER_STATUS = { CANCELLED: 'CANCELLED', PAID: 'PAID', PROCESSING: 'PROCESSING', FULFILLED: 'FULFILLED' };
 
 // --- Utility Functions ---
 
@@ -329,14 +329,14 @@ async function handleOrderSubmission(event) {
 
         console.log('[ORDER] Creating order with shortId:', shortId);
 
-        // CREATE THE ORDER FIRST with PROCESSING status (pending payment verification)
+        // CREATE THE ORDER FIRST with CANCELLED status (pending payment verification)
         const orderResult = await createOrderInDB({
             shortId: shortId,
             customerPhone: customerPhone,
             packageGB: selectedPackage.dataValueGB,
             packagePrice: totalPrice, // Store total with fee
             packageDetails: selectedPackage.packageName,
-            status: ORDER_STATUS.PROCESSING, // Start as PROCESSING, will be verified and updated to PAID
+            status: ORDER_STATUS.CANCELLED, // Start as CANCELLED, will be verified and updated to PAID
             createdAt: new Date().toISOString(),
         });
 
