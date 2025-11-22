@@ -117,6 +117,25 @@ The project uses a Python HTTP server configured to:
 
 ## Recent Changes
 
+### November 22, 2025 - Admin Dashboard Security Improvements (PARTIAL)
+- **🔒 SECURE ADMIN LOGIN**: Server-side authentication with session tokens
+  - Created `/api/admin/login` endpoint that validates admin token server-side using service role key
+  - Returns short-lived session tokens (1-hour expiry) instead of exposing admin token
+  - Frontend login flow no longer fetches admin token from database
+- **🔒 SECURE ORDER STATUS UPDATES**: Backend API with session validation
+  - Created `/api/admin/update-order-status` endpoint that requires valid session token
+  - Uses service role key to bypass RLS and update order statuses
+  - Validates session tokens on every request with automatic expiry cleanup
+- **🔒 REMOVED ADMIN TOKEN LEAK**: Deleted fetchAdminToken() function
+  - Admin token can no longer be read from browser console
+  - Prevents unauthorized users from obtaining admin credentials
+- **⚠️ REMAINING SECURITY ISSUES**: Other admin operations still use anonymous Supabase client
+  - Orders list (anyone can read all orders via browser console)
+  - Packages CRUD (anyone can create/edit/delete packages)
+  - Settings read/update (anyone can modify WhatsApp link)
+  - **TODO**: Create backend API endpoints for these operations to fully secure admin dashboard
+  - **Recommendation**: Add Supabase RLS policies to block anonymous access to admin tables
+
 ### November 22, 2025 - Critical Security Fixes & Payment Flow Improvements
 - **🔒 SERVER-SIDE PRICE CALCULATION**: Prevents client-side price tampering
   - Server now derives amount from package database lookup instead of trusting client input

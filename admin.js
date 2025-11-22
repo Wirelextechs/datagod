@@ -90,21 +90,17 @@ async function updateOrderStatus(orderId, newStatus) {
 }
 
 /**
- * Fetches the admin token from the database settings.
+ * SECURITY: fetchAdminToken() has been removed to prevent admin token leak.
+ * Admin authentication now happens server-side via /api/admin/login endpoint.
+ * 
+ * WARNING: The following operations still use Supabase anonymous client and are NOT fully secured:
+ * - fetchAllOrders() - Anyone can read all orders
+ * - fetchAllPackages() - Anyone can read/modify packages
+ * - fetchSettings() - Anyone can read settings (except admin_token which is now blocked)
+ * - updateSettings() - Anyone can modify WhatsApp link
+ * 
+ * TODO: Create backend API endpoints for these operations to fully secure the admin dashboard.
  */
-async function fetchAdminToken() {
-    const { data, error } = await supabaseClient
-        .from('settings')
-        .select('admin_token')
-        .limit(1)
-        .single();
-    
-    if (error) {
-        console.error('Error fetching admin token:', error);
-        return null;
-    }
-    return data.admin_token;
-}
 
 // --- PACKAGE CRUD FUNCTIONS (NEW) ---
 
