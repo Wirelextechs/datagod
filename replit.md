@@ -43,13 +43,20 @@ DataGod is a real-time data vending platform for MTN Ghana. It allows customers 
 The application uses three main tables:
 
 1. **orders** - Customer transactions
-   - short_id (4-digit tracking ID)
+   - **short_id** (5-character tracking ID with alphabetic prefix: a0000-z9999) - UNIQUE customer-facing ID
+   - **paystack_reference** (UUID) - UNIQUE Paystack transaction reference (prevents reference collisions)
    - customer_phone
    - package_gb
    - package_price
    - package_details
    - status (PAID, PROCESSING, FULFILLED, CANCELLED)
    - created_at, updated_at
+   
+   **⚠️ REQUIRED DATABASE UPDATE:** Run this SQL in Supabase SQL Editor to add the new column:
+   ```sql
+   ALTER TABLE orders ADD COLUMN IF NOT EXISTS paystack_reference TEXT;
+   CREATE INDEX IF NOT EXISTS idx_orders_paystack_reference ON orders(paystack_reference);
+   ```
 
 2. **packages** - Data package configurations
    - id
@@ -92,10 +99,11 @@ The project uses a Python HTTP server configured to:
 1. Visit the main storefront (index.html)
 2. Browse available data packages
 3. Click "Buy Now" on desired package
-4. Enter MTN Mobile Money number
-5. Confirm purchase
-6. Save the 4-digit Short ID for tracking
-7. Check order status using the Short ID lookup
+4. Enter email and MTN Mobile Money number
+5. Confirm purchase - automatically redirected to Paystack
+6. Complete payment on Paystack checkout page
+7. Return to site - payment automatically verified
+8. Save the 5-character Tracking ID (e.g., a0001) for order status checks
 
 ### For Administrators
 1. Visit admin.html
@@ -107,6 +115,26 @@ The project uses a Python HTTP server configured to:
 7. Configure WhatsApp support link
 
 ## Recent Changes
+
+### November 22, 2025 - Critical Security Fixes & Payment Flow Improvements
+- **🔒 SERVER-SIDE PRICE CALCULATION**: Prevents client-side price tampering
+  - Server now derives amount from package database lookup instead of trusting client input
+  - Client sends `package_id` only; server calculates total with 1.5% fee
+  - Eliminates vulnerability where users could modify payment amounts in DevTools
+- **🔒 PAYMENT AMOUNT VERIFICATION**: Validates every payment before marking as PAID
+  - Both webhook and manual verification endpoints check payment amount matches expected price
+  - Rejects payments if amount mismatch detected (0.02 GHS tolerance for rounding)
+  - Logs security alerts when payment tampering is attempted
+- **🔒 UNIQUE PAYSTACK REFERENCES**: Prevents duplicate reference errors
+  - Generate UUID-based Paystack transaction references (separate from short IDs)
+  - Extends order capacity from 10K to unlimited (no more reference collisions)
+  - Short IDs now use alphabetic prefixes (a0000-z9999) for 260K unique customer IDs
+- **📝 ALPHABETIC PREFIX SYSTEM**: Customer-facing tracking IDs with prefixes
+  - Format: `a0000` to `z9999` (letter + 4 digits)
+  - First 10K orders: a0000-a9999
+  - Next 10K orders: b0000-b9999
+  - Extends to 260K total orders (26 letters × 10K each)
+  - Generated sequentially based on order count
 
 ### November 22, 2025 - Mobile-Optimized Payment Flow
 - **✅ FULL-PAGE REDIRECT PAYMENT**: Complete redesign of payment flow for mobile compatibility

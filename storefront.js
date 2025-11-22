@@ -14,13 +14,7 @@ const PAYSTACK_PUBLIC_KEY = 'pk_live_7e49a5058739c7db12015d0a8ca0c27917110ce0';
 const ORDER_STATUS = { CANCELLED: 'CANCELLED', PAID: 'PAID', PROCESSING: 'PROCESSING', FULFILLED: 'FULFILLED' };
 
 // --- Utility Functions ---
-
-/**
- * Generates a unique 4-digit string ID.
- */
-function generateShortId() {
-    return Math.floor(1000 + Math.random() * 9000).toString();
-}
+// (Server now generates all IDs securely)
 
 // --- Supabase Interaction Functions ---
 
@@ -67,28 +61,8 @@ async function fetchSettings() {
 }
 
 /**
- * Creates a new order transaction in the database.
+ * NOTE: createOrderInDB removed - server now creates all orders
  */
-async function createOrderInDB(orderData) {
-    const { data, error } = await supabaseClient
-        .from('orders')
-        .insert([{
-            short_id: orderData.shortId,
-            customer_phone: orderData.customerPhone,
-            package_gb: orderData.packageGB,
-            package_price: orderData.packagePrice,
-            package_details: orderData.packageDetails,
-            status: orderData.status,
-            created_at: orderData.createdAt,
-        }])
-        .select('short_id'); 
-
-    if (error) {
-        console.error('Error submitting order:', error.message || JSON.stringify(error));
-        return { success: false, error: error };
-    }
-    return { success: true, shortId: data[0].short_id }; 
-}
 
 /**
  * Queries the database to find an order by Short ID.
@@ -176,10 +150,12 @@ function getStatusReportHtml(order) {
 async function handleStatusLookup() {
     const lookupInput = document.getElementById('short-id-lookup');
     const reportArea = document.getElementById('status-report');
-    const shortId = lookupInput.value.trim();
+    const shortId = lookupInput.value.trim().toLowerCase();
 
-    if (shortId.length !== 4 || isNaN(shortId)) {
-        reportArea.innerHTML = '<p style="color: red;">Please enter a valid 4-digit Short ID.</p>';
+    // NEW FORMAT: Alphabetic prefix + 4 digits (e.g., a0001, b0023, z9999)
+    const validFormat = /^[a-z]\d{4}$/;
+    if (!validFormat.test(shortId)) {
+        reportArea.innerHTML = '<p style="color: red;">Please enter a valid Tracking ID (format: a0001, b0123, etc.)</p>';
         return;
     }
 
@@ -339,43 +315,47 @@ async function handleOrderSubmission(event) {
             return;
         }
 
-        // Generate short ID for this order
-        const shortId = generateShortId();
+        console.log('[ORDER] Initializing secure payment for package:', selectedPackage.id);
+
+        // SECURITY FIX: Send package_id to server, not amount
+        // Server will lookup package price and calculate total (prevents price tampering)
+        const initUrl = `${window.location.origin}/api/initialize-payment`;
+        console.log('[ORDER] Calling:', initUrl);
         
-        // Calculate total amount with 1.5% processing fee
-        const basePrice = selectedPackage.priceGHS;
-        const fee = basePrice * 0.015; // 1.5% fee
-        const totalPrice = basePrice + fee;
-        const amount = Math.round(totalPrice * 100); // Convert to pesewas for Paystack
-
-        console.log('[ORDER] Creating order with shortId:', shortId);
-
-        // CREATE THE ORDER FIRST with CANCELLED status (pending payment verification)
-        const orderResult = await createOrderInDB({
-            shortId: shortId,
-            customerPhone: customerPhone,
-            packageGB: selectedPackage.dataValueGB,
-            packagePrice: totalPrice, // Store total with fee
-            packageDetails: selectedPackage.packageName,
-            status: ORDER_STATUS.CANCELLED, // Start as CANCELLED, will be verified and updated to PAID
-            createdAt: new Date().toISOString(),
+        const response = await fetch(initUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                package_id: selectedPackage.id,
+                phone: customerPhone,
+                email: email
+            })
         });
 
-        if (!orderResult.success) {
-            console.error('Order creation failed:', orderResult.error);
-            alert('Failed to create order. Please try again.');
+        const result = await response.json();
+        console.log('[ORDER] Response:', result);
+
+        if (!result.success) {
+            console.error('Payment initialization failed:', result.error);
+            alert('Failed to initialize payment. Please try again.');
             submitBtn.disabled = false;
             submitBtn.textContent = 'Confirm Order & Pay';
             return;
         }
 
-        console.log('[ORDER] ✓ Order created with id:', shortId);
+        // Server created order and generated secure IDs
+        const shortId = result.short_id;  // Alphabetic prefix ID (e.g., a0001)
+        const authorizationUrl = result.authorization_url;
+        const totalAmount = result.amount;
+
+        console.log('[ORDER] ✓ Order created with ID:', shortId);
+        console.log('[ORDER] Total amount: GHS', totalAmount);
 
         // Close modal
         closeOrderModal();
         
-        // Show waiting screen immediately with payment instructions
-        showWaitingScreenWithPayment(shortId, selectedPackage.packageName, email, amount);
+        // Show order confirmation with payment redirect
+        showPaymentRedirectScreen(shortId, selectedPackage.packageName, authorizationUrl);
         
     } catch (error) {
         console.error("Error processing order:", error);
@@ -388,13 +368,21 @@ async function handleOrderSubmission(event) {
 /**
  * Shows waiting screen with payment button - avoids iframe blocking issues
  */
-function showWaitingScreenWithPayment(shortId, packageName, email, amount) {
-    console.log('[WAITING] Showing payment screen for order:', shortId);
+/**
+ * Show payment redirect screen and automatically redirect to Paystack
+ * NEW SECURE FLOW: Server has already created order with short_id
+ */
+function showPaymentRedirectScreen(shortId, packageName, authorizationUrl) {
+    console.log('[PAYMENT] Redirecting to Paystack for order:', shortId);
     
     const modal = document.getElementById('order-modal');
     if (modal) {
         modal.style.display = 'none';
     }
+    
+    // Store short ID for auto-verification when user returns
+    sessionStorage.setItem('lastOrderReference', shortId);
+    console.log('[PAYMENT] Stored short ID for auto-verification:', shortId);
     
     const mainContent = document.getElementById('main-content');
     if (mainContent) {
@@ -407,105 +395,47 @@ function showWaitingScreenWithPayment(shortId, packageName, email, amount) {
                     <strong style="font-size: 2.5em; color: #007bff;">${shortId}</strong>
                 </div>
                 <p style="color: #666; margin-bottom: 10px;"><strong>Package:</strong> ${packageName}</p>
-                <p style="color: #666; margin-bottom: 25px;"><strong>Amount:</strong> GHS ${(amount / 100).toFixed(2)}</p>
                 
                 <div style="background: #fff3cd; border-left: 4px solid #ffc107; padding: 15px; margin: 20px 0; text-align: left;">
-                    <p style="margin: 0; color: #856404;"><strong>⚠️ Important:</strong> Save your tracking ID <strong>${shortId}</strong> before proceeding to payment!</p>
+                    <p style="margin: 0; color: #856404;"><strong>⚠️ Important:</strong> Save your tracking ID <strong>${shortId}</strong>!</p>
                 </div>
                 
-                <button 
-                    onclick="proceedToPaystack('${shortId}', '${email}', ${amount})"
-                    style="background-color: #007bff; color: white; padding: 15px 40px; border: none; border-radius: 5px; font-size: 1.1em; cursor: pointer; font-weight: bold; box-shadow: 0 2px 4px rgba(0,0,0,0.2); margin-bottom: 15px; width: 100%;">
-                    💳 Proceed to Payment
-                </button>
-                
-                <p style="color: #999; margin: 20px 0; font-size: 0.9em;">
-                    After completing payment, return here and click the button below to verify:
+                <p style="margin: 20px 0; font-size: 1.1em; color: #333;">
+                    Redirecting to payment gateway in <span id="countdown">3</span> seconds...
                 </p>
                 
                 <button 
-                    id="verify-payment-btn" 
-                    onclick="verifyManualPayment('${shortId}', '${packageName}')"
-                    style="background-color: #28a745; color: white; padding: 12px 30px; border: none; border-radius: 5px; font-size: 1em; cursor: pointer; font-weight: bold; width: 100%;">
-                    ✓ I Have Paid - Verify Now
+                    onclick="window.location.href='${authorizationUrl}'"
+                    style="background-color: #007bff; color: white; padding: 15px 40px; border: none; border-radius: 5px; font-size: 1.1em; cursor: pointer; font-weight: bold; box-shadow: 0 2px 4px rgba(0,0,0,0.2); margin-bottom: 15px; width: 100%;">
+                    💳 Pay Now
                 </button>
                 
                 <button 
                     onclick="location.reload()" 
-                    style="background-color: #6c757d; color: white; padding: 10px 20px; border: none; border-radius: 5px; margin-top: 15px; cursor: pointer;">
-                    ← Back to Store
+                    style="background-color: #6c757d; color: white; padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer;">
+                    ← Cancel
                 </button>
             </div>
         `;
+        
+        // Countdown and auto-redirect
+        let countdown = 3;
+        const countdownEl = document.getElementById('countdown');
+        const countdownInterval = setInterval(() => {
+            countdown--;
+            if (countdownEl) countdownEl.textContent = countdown;
+            if (countdown <= 0) {
+                clearInterval(countdownInterval);
+                window.location.href = authorizationUrl;
+            }
+        }, 1000);
     }
 }
 
-// Global variables to store auto-polling state
+// Global variables to store auto-polling state (for manual verification)
 let autoVerifyIntervalId = null;
 let autoVerifyAttempts = 0;
 const MAX_VERIFY_ATTEMPTS = 60; // 60 attempts * 2 seconds = 2 minutes timeout
-
-/**
- * Opens Paystack checkout in a NEW BROWSER TAB (avoids iframe blocking)
- */
-async function proceedToPaystack(reference, email, amount) {
-    console.log('[PAYSTACK] Initializing payment for:', reference);
-    console.log('[PAYSTACK] Email:', email, 'Amount:', amount);
-    
-    try {
-        // Call backend to initialize Paystack transaction
-        // Use absolute path to avoid any proxy/caching issues
-        const initUrl = `${window.location.origin}/api/initialize-payment`;
-        console.log('[PAYSTACK] Sending request to:', initUrl);
-        const response = await fetch(initUrl, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                email: email,
-                amount: amount,
-                reference: reference
-            })
-        });
-        
-        console.log('[PAYSTACK] Response status:', response.status, response.statusText);
-        console.log('[PAYSTACK] Response headers:', {
-            'content-type': response.headers.get('content-type'),
-            'content-length': response.headers.get('content-length')
-        });
-        
-        if (!response.ok) {
-            const errorText = await response.text();
-            console.error('[PAYSTACK] HTTP error response:', errorText);
-            console.error('[PAYSTACK] Full response object:', response);
-            alert(`Payment initialization failed (Status: ${response.status} ${response.statusText})\n\nRequest URL: /api/initialize-payment\n\nPlease check your internet connection and try again.`);
-            return;
-        }
-        
-        const data = await response.json();
-        console.log('[PAYSTACK] Response data:', data);
-        
-        if (data.success && data.authorization_url) {
-            console.log('[PAYSTACK] ✓ Payment initialized. Redirecting to Paystack checkout...');
-            
-            // Store order reference in sessionStorage so we can retrieve it after redirect
-            sessionStorage.setItem('lastOrderReference', reference);
-            
-            // FULL PAGE REDIRECT - More mobile-friendly than new tab
-            // User will be redirected to Paystack, complete payment, then automatically return
-            console.log('[PAYSTACK] Redirecting to:', data.authorization_url);
-            window.location.href = data.authorization_url;
-            
-        } else {
-            console.error('[PAYSTACK] Initialization failed:', data.error);
-            alert('Failed to initialize payment: ' + (data.error || 'Unknown error'));
-        }
-    } catch (error) {
-        console.error('[PAYSTACK] Caught error:', error);
-        console.error('[PAYSTACK] Error name:', error.name);
-        console.error('[PAYSTACK] Error message:', error.message);
-        alert(`Error connecting to payment system: ${error.message}. Please check your internet connection and try again.`);
-    }
-}
 
 /**
  * Automatically verify payment by polling the backend
