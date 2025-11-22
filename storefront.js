@@ -403,8 +403,10 @@ function showWaitingScreenWithPayment(shortId, packageName, email, amount) {
     }
 }
 
-// Global variable to store auto-polling interval
+// Global variables to store auto-polling state
 let autoVerifyIntervalId = null;
+let autoVerifyAttempts = 0;
+const MAX_VERIFY_ATTEMPTS = 60; // 60 attempts * 2 seconds = 2 minutes timeout
 
 /**
  * Opens Paystack checkout in a NEW BROWSER TAB (avoids iframe blocking)
@@ -457,9 +459,18 @@ async function proceedToPaystack(reference, email, amount) {
             
             alert('Payment window opened in a new tab. Complete your payment there, then return here.');
             
-            // START AUTOMATIC POLLING - Check payment status every 2 seconds
+            // START AUTOMATIC POLLING - Check payment status every 2 seconds (max 2 minutes)
             console.log('[PAYSTACK] Starting automatic payment verification...');
+            autoVerifyAttempts = 0;
             autoVerifyIntervalId = setInterval(() => {
+                autoVerifyAttempts++;
+                if (autoVerifyAttempts > MAX_VERIFY_ATTEMPTS) {
+                    console.log('[AUTO-VERIFY] Maximum polling attempts reached. Stopping...');
+                    clearInterval(autoVerifyIntervalId);
+                    autoVerifyIntervalId = null;
+                    alert('Payment verification timeout.\n\nIf you have completed payment, click "Verify Manually (If Needed)" button to confirm.');
+                    return;
+                }
                 autoVerifyPayment(reference);
             }, 2000); // Poll every 2 seconds
             
