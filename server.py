@@ -42,6 +42,113 @@ class NoCacheHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
         self.send_response(200)
         self.end_headers()
 
+    def do_GET(self):
+        # Parse URL
+        parsed_path = urlparse(self.path)
+        
+        # Payment callback endpoint
+        if parsed_path.path == '/api/payment-callback':
+            self.handle_payment_callback()
+        else:
+            # Default file serving
+            super().do_GET()
+
+    def handle_payment_callback(self):
+        """Handle Paystack payment callback - close the payment window"""
+        try:
+            self.send_response(200)
+            self.send_header('Content-Type', 'text/html')
+            self.end_headers()
+            
+            html = '''
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <title>Payment Confirmed</title>
+                <style>
+                    body {
+                        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+                        display: flex;
+                        justify-content: center;
+                        align-items: center;
+                        min-height: 100vh;
+                        margin: 0;
+                        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                    }
+                    .container {
+                        text-align: center;
+                        background: white;
+                        padding: 40px;
+                        border-radius: 10px;
+                        box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+                        max-width: 400px;
+                    }
+                    .checkmark {
+                        font-size: 60px;
+                        margin-bottom: 20px;
+                        animation: bounce 0.6s;
+                    }
+                    h1 {
+                        color: #28a745;
+                        margin: 0 0 10px 0;
+                        font-size: 28px;
+                    }
+                    p {
+                        color: #666;
+                        margin: 10px 0;
+                        font-size: 16px;
+                    }
+                    .button {
+                        background-color: #007bff;
+                        color: white;
+                        padding: 12px 30px;
+                        border: none;
+                        border-radius: 5px;
+                        font-size: 16px;
+                        cursor: pointer;
+                        margin-top: 20px;
+                        font-weight: bold;
+                    }
+                    .button:hover {
+                        background-color: #0056b3;
+                    }
+                    @keyframes bounce {
+                        0% { transform: scale(0.3); opacity: 0; }
+                        50% { transform: scale(1.05); }
+                        70% { transform: scale(0.9); }
+                        100% { transform: scale(1); opacity: 1; }
+                    }
+                </style>
+            </head>
+            <body>
+                <div class="container">
+                    <div class="checkmark">✓</div>
+                    <h1>Payment Confirmed!</h1>
+                    <p>Your payment has been successfully processed.</p>
+                    <p style="font-size: 14px; color: #999;">Return to the original window to complete your order.</p>
+                    <button class="button" onclick="closeWindow()">Close This Window</button>
+                </div>
+                <script>
+                    // Try to auto-close after 3 seconds
+                    setTimeout(() => {
+                        closeWindow();
+                    }, 3000);
+                    
+                    function closeWindow() {
+                        // This only works if the window was opened by JavaScript (which it was)
+                        window.close();
+                    }
+                </script>
+            </body>
+            </html>
+            '''
+            
+            self.wfile.write(html.encode())
+        except Exception as e:
+            print(f'[CALLBACK] Error: {e}')
+            self.send_response(500)
+            self.end_headers()
+
     def do_POST(self):
         # Parse URL
         parsed_path = urlparse(self.path)
@@ -282,7 +389,7 @@ class NoCacheHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
                 'amount': amount,
                 'reference': reference,
                 'currency': 'GHS',
-                'callback_url': f'https://datagod.replit.app/?payment_ref={reference}'
+                'callback_url': f'https://datagod.replit.app/api/payment-callback?reference={reference}'
             }).encode('utf-8')
             
             print(f'[INIT] Sending request to Paystack...')
