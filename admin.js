@@ -51,16 +51,42 @@ async function fetchAllOrders() {
  * Updates a single order's status in the database.
  */
 async function updateOrderStatus(orderId, newStatus) {
-    const { error } = await supabaseClient
-        .from('orders')
-        .update({ status: newStatus })
-        .eq('id', orderId);
+    try {
+        // Get session token from session storage
+        const sessionToken = sessionStorage.getItem('session_token');
+        
+        if (!sessionToken) {
+            console.error('No session token found - user may need to re-login');
+            return { success: false, error: 'Not authenticated' };
+        }
+        
+        // Use backend API endpoint with session token
+        const response = await fetch(`${window.location.origin}/api/admin/update-order-status`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                order_id: orderId,
+                status: newStatus,
+                session_token: sessionToken  // Send session token for authentication
+            })
+        });
 
-    if (error) {
+        const result = await response.json();
+        
+        if (!response.ok || !result.success) {
+            console.error('Error updating order status:', result.error);
+            return { success: false, error: result.error };
+        }
+        
+        console.log('Order status updated successfully:', result.message);
+        return { success: true };
+        
+    } catch (error) {
         console.error('Error updating order status:', error);
-        return { success: false };
+        return { success: false, error: error.message };
     }
-    return { success: true };
 }
 
 /**
@@ -448,15 +474,33 @@ async function handleLogin(event) {
     const tokenInput = document.getElementById('admin-token-input');
     const tokenAttempt = tokenInput.value.trim();
     
-    // Fetch the token from Supabase instead of mock data
-    const storedToken = await fetchAdminToken(); 
-
-    if (storedToken && tokenAttempt === storedToken) {
-        sessionStorage.setItem('admin_session_valid', 'true');
-        window.location.hash = '#dashboard';
-        renderDashboard();
-    } else {
-        alert('Invalid Secret Admin Token.');
+    try {
+        // Call server-side login endpoint (token verification happens on server)
+        const response = await fetch(`${window.location.origin}/api/admin/login`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                admin_token: tokenAttempt
+            })
+        });
+        
+        const result = await response.json();
+        
+        if (response.ok && result.success) {
+            // Store session token (NOT the admin token)
+            sessionStorage.setItem('admin_session_valid', 'true');
+            sessionStorage.setItem('session_token', result.session_token);
+            window.location.hash = '#dashboard';
+            renderDashboard();
+        } else {
+            alert('Invalid Secret Admin Token.');
+            tokenInput.value = '';
+        }
+    } catch (error) {
+        console.error('Login error:', error);
+        alert('Login failed. Please try again.');
         tokenInput.value = '';
     }
 }
@@ -576,6 +620,7 @@ async function renderDashboard() {
  */
 function handleLogout() {
     sessionStorage.removeItem('admin_session_valid');
+    sessionStorage.removeItem('session_token'); // Clear session token
     window.location.hash = ''; 
     renderDashboard();
 }

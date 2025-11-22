@@ -29,6 +29,12 @@ if not SUPABASE_SERVICE_ROLE_KEY:
 else:
     print(f'[STARTUP] SUPABASE_SERVICE_ROLE_KEY loaded (length: {len(SUPABASE_SERVICE_ROLE_KEY)})')
 
+# In-memory session storage for admin authentication
+# Format: {session_token: expiry_timestamp}
+import time
+ADMIN_SESSIONS = {}
+SESSION_DURATION = 3600  # 1 hour in seconds
+
 
 # --- Helper Functions ---
 
@@ -149,6 +155,88 @@ def create_order_in_supabase(short_id, phone, package_data, paystack_reference):
         return False
 
 
+def verify_admin_token_against_db(provided_token):
+    """Verify admin token against database settings (server-side only)"""
+    try:
+        url = f'{SUPABASE_URL}/rest/v1/settings?select=admin_token&limit=1'
+        headers = {
+            'apikey': SUPABASE_SERVICE_ROLE_KEY,
+            'Authorization': f'Bearer {SUPABASE_SERVICE_ROLE_KEY}',
+            'Content-Type': 'application/json'
+        }
+        
+        req = urllib.request.Request(url, headers=headers, method='GET')
+        response = urllib.request.urlopen(req, timeout=5)
+        data = json.loads(response.read().decode('utf-8'))
+        
+        if data and len(data) > 0:
+            stored_token = data[0].get('admin_token')
+            return provided_token == stored_token
+        
+        return False
+        
+    except Exception as e:
+        print(f'[ADMIN] Error verifying admin token: {e}')
+        return False
+
+
+def create_admin_session():
+    """Create a new admin session and return session token"""
+    session_token = str(uuid.uuid4())
+    expiry = time.time() + SESSION_DURATION
+    ADMIN_SESSIONS[session_token] = expiry
+    print(f'[ADMIN] Created new session: {session_token[:8]}...')
+    return session_token
+
+
+def validate_admin_session(session_token):
+    """Validate an admin session token"""
+    if not session_token:
+        return False
+    
+    # Clean up expired sessions
+    current_time = time.time()
+    expired_sessions = [token for token, expiry in ADMIN_SESSIONS.items() if expiry < current_time]
+    for token in expired_sessions:
+        del ADMIN_SESSIONS[token]
+        print(f'[ADMIN] Removed expired session: {token[:8]}...')
+    
+    # Check if session is valid and not expired
+    if session_token in ADMIN_SESSIONS:
+        if ADMIN_SESSIONS[session_token] > current_time:
+            return True
+        else:
+            del ADMIN_SESSIONS[session_token]
+            print(f'[ADMIN] Session expired: {session_token[:8]}...')
+    
+    return False
+
+
+def update_order_status_with_service_key(order_id, new_status):
+    """Update order status using service role key to bypass RLS"""
+    try:
+        url = f'{SUPABASE_URL}/rest/v1/orders?id=eq.{order_id}'
+        headers = {
+            'apikey': SUPABASE_SERVICE_ROLE_KEY,
+            'Authorization': f'Bearer {SUPABASE_SERVICE_ROLE_KEY}',
+            'Content-Type': 'application/json',
+            'Prefer': 'return=minimal'
+        }
+        
+        update_data = {'status': new_status}
+        body = json.dumps(update_data).encode('utf-8')
+        
+        req = urllib.request.Request(url, data=body, headers=headers, method='PATCH')
+        response = urllib.request.urlopen(req, timeout=5)
+        
+        print(f'[ADMIN] Updated order {order_id} to status {new_status}')
+        return True
+        
+    except Exception as e:
+        print(f'[ADMIN] Error updating order status: {e}')
+        return False
+
+
 class NoCacheHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
     def end_headers(self):
         self.send_header('Cache-Control', 'no-cache, no-store, must-revalidate')
@@ -180,6 +268,12 @@ class NoCacheHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
         # Payment initialization endpoint
         elif parsed_path.path == '/api/initialize-payment':
             self.handle_initialize_payment()
+        # Admin login endpoint
+        elif parsed_path.path == '/api/admin/login':
+            self.handle_admin_login()
+        # Admin order status update endpoint
+        elif parsed_path.path == '/api/admin/update-order-status':
+            self.handle_admin_update_order_status()
         else:
             print(f'[REQUEST] ERROR: 404 - Path not recognized: {parsed_path.path}')
             self.send_response(404)
@@ -592,6 +686,148 @@ class NoCacheHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
                 
         except Exception as e:
             print(f'[INIT] Unexpected error: {e}')
+            import traceback
+            traceback.print_exc()
+            self.send_response(500)
+            self.end_headers()
+            self.wfile.write(json.dumps({
+                'success': False,
+                'error': str(e)
+            }).encode())
+
+    def handle_admin_login(self):
+        """Handle admin login and return session token"""
+        try:
+            # Read request body
+            content_length = int(self.headers.get('Content-Length', 0))
+            body = self.rfile.read(content_length).decode('utf-8')
+            request_data = json.loads(body)
+            
+            admin_token = request_data.get('admin_token')
+            
+            print('[ADMIN] Login attempt')
+            
+            # Validate admin token
+            if not admin_token:
+                self.send_response(400)
+                self.end_headers()
+                self.wfile.write(json.dumps({
+                    'success': False,
+                    'error': 'Admin token required'
+                }).encode())
+                return
+            
+            # Verify token against database (server-side only)
+            if not verify_admin_token_against_db(admin_token):
+                print('[ADMIN] ERROR: Invalid admin token')
+                self.send_response(403)
+                self.end_headers()
+                self.wfile.write(json.dumps({
+                    'success': False,
+                    'error': 'Invalid admin credentials'
+                }).encode())
+                return
+            
+            # Create session
+            session_token = create_admin_session()
+            print('[ADMIN] ✓ Login successful')
+            
+            self.send_response(200)
+            self.end_headers()
+            self.wfile.write(json.dumps({
+                'success': True,
+                'session_token': session_token
+            }).encode())
+            
+        except Exception as e:
+            print(f'[ADMIN] Error handling login: {e}')
+            import traceback
+            traceback.print_exc()
+            self.send_response(500)
+            self.end_headers()
+            self.wfile.write(json.dumps({
+                'success': False,
+                'error': str(e)
+            }).encode())
+
+    def handle_admin_update_order_status(self):
+        """Handle admin order status updates using service role key"""
+        try:
+            # Read request body
+            content_length = int(self.headers.get('Content-Length', 0))
+            body = self.rfile.read(content_length).decode('utf-8')
+            request_data = json.loads(body)
+            
+            order_id = request_data.get('order_id')
+            new_status = request_data.get('status')
+            session_token = request_data.get('session_token')
+            
+            print(f'[ADMIN] Update request for order {order_id} to status {new_status}')
+            
+            # SECURITY: Verify session token first
+            if not session_token:
+                print('[ADMIN] ERROR: No session token provided')
+                self.send_response(401)
+                self.end_headers()
+                self.wfile.write(json.dumps({
+                    'success': False,
+                    'error': 'Authentication required'
+                }).encode())
+                return
+            
+            if not validate_admin_session(session_token):
+                print('[ADMIN] ERROR: Invalid or expired session')
+                self.send_response(403)
+                self.end_headers()
+                self.wfile.write(json.dumps({
+                    'success': False,
+                    'error': 'Invalid or expired session'
+                }).encode())
+                return
+            
+            print('[ADMIN] ✓ Session validated')
+            
+            # Validate required fields
+            if not order_id or not new_status:
+                self.send_response(400)
+                self.end_headers()
+                self.wfile.write(json.dumps({
+                    'success': False,
+                    'error': 'Missing order_id or status'
+                }).encode())
+                return
+            
+            # Validate status value
+            valid_statuses = ['CANCELLED', 'PAID', 'PROCESSING', 'FULFILLED']
+            if new_status not in valid_statuses:
+                self.send_response(400)
+                self.end_headers()
+                self.wfile.write(json.dumps({
+                    'success': False,
+                    'error': f'Invalid status. Must be one of: {", ".join(valid_statuses)}'
+                }).encode())
+                return
+            
+            # Update order using service role key
+            success = update_order_status_with_service_key(order_id, new_status)
+            
+            if success:
+                self.send_response(200)
+                self.end_headers()
+                self.wfile.write(json.dumps({
+                    'success': True,
+                    'message': f'Order {order_id} updated to {new_status}'
+                }).encode())
+            else:
+                self.send_response(500)
+                self.end_headers()
+                self.wfile.write(json.dumps({
+                    'success': False,
+                    'error': 'Failed to update order'
+                }).encode())
+                
+        except Exception as e:
+            print(f'[ADMIN] Error handling update request: {e}')
             import traceback
             traceback.print_exc()
             self.send_response(500)
