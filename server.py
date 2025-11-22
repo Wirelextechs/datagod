@@ -129,6 +129,8 @@ def create_order_in_supabase(short_id, phone, package_data, paystack_reference):
             'status': 'CANCELLED'  # Will be updated to PAID by webhook
         }
         
+        print(f'[ORDER] Attempting to create order: {json.dumps(order_data, indent=2)}')
+        
         body = json.dumps(order_data).encode('utf-8')
         req = urllib.request.Request(url, data=body, headers=headers, method='POST')
         response = urllib.request.urlopen(req, timeout=5)
@@ -136,8 +138,14 @@ def create_order_in_supabase(short_id, phone, package_data, paystack_reference):
         print(f'[ORDER] Created order {short_id} with Paystack reference {paystack_reference}')
         return True
         
+    except urllib.error.HTTPError as e:
+        error_body = e.read().decode('utf-8')
+        print(f'[ORDER] HTTP Error {e.code}: {error_body}')
+        return False
     except Exception as e:
         print(f'[ORDER] Error creating order: {e}')
+        import traceback
+        traceback.print_exc()
         return False
 
 
