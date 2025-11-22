@@ -215,7 +215,8 @@ async function autoVerifyOnPageLoad() {
         console.log('[AUTO-VERIFY] Starting automatic verification...');
         // Verify payment
         try {
-            const response = await fetch('/api/verify-payment', {
+            const verifyUrl = `${window.location.origin}/api/verify-payment`;
+            const response = await fetch(verifyUrl, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ reference: lastOrderRef })
@@ -453,8 +454,10 @@ async function proceedToPaystack(reference, email, amount) {
     
     try {
         // Call backend to initialize Paystack transaction
-        console.log('[PAYSTACK] Sending request to /api/initialize-payment...');
-        const response = await fetch('/api/initialize-payment', {
+        // Use absolute path to avoid any proxy/caching issues
+        const initUrl = `${window.location.origin}/api/initialize-payment`;
+        console.log('[PAYSTACK] Sending request to:', initUrl);
+        const response = await fetch(initUrl, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -511,7 +514,8 @@ async function autoVerifyPayment(shortId) {
     try {
         console.log('[AUTO-VERIFY] Checking payment status for:', shortId);
         
-        const response = await fetch('/api/verify-payment', {
+        const verifyUrl = `${window.location.origin}/api/verify-payment`;
+        const response = await fetch(verifyUrl, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ reference: shortId })
@@ -613,7 +617,8 @@ async function verifyManualPayment(shortId, packageName) {
     try {
         console.log('[VERIFY] Manually verifying payment for:', shortId);
         
-        const response = await fetch('/api/verify-payment', {
+        const verifyUrl = `${window.location.origin}/api/verify-payment`;
+        const response = await fetch(verifyUrl, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ reference: shortId })
@@ -698,6 +703,9 @@ function showSuccessScreen(shortId, packageName) {
 
 // Initialize the Storefront when the page loads
 document.addEventListener('DOMContentLoaded', () => {
+    // Check for returning users from Paystack checkout
+    autoVerifyOnPageLoad();
+    
     renderCatalog();
     renderContactLink();
     

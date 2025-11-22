@@ -106,7 +106,25 @@ The project uses a Python HTTP server configured to:
 6. Export orders to CSV for bulk data loading
 7. Configure WhatsApp support link
 
-## Recent Changes (November 21, 2025)
+## Recent Changes
+
+### November 22, 2025 - Mobile-Optimized Payment Flow
+- **✅ FULL-PAGE REDIRECT PAYMENT**: Complete redesign of payment flow for mobile compatibility
+  - Switched from new-tab approach to full-page redirect (mobile-friendly)
+  - User goes directly to Paystack checkout → completes payment → returns automatically
+  - Eliminated iframe/popup blocking issues on mobile browsers
+- **✅ AUTOMATIC PAYMENT VERIFICATION**: Auto-verify when returning from Paystack
+  - Added `autoVerifyOnPageLoad()` function called on page load
+  - Uses sessionStorage to track order reference across redirects
+  - Automatically verifies and displays success screen without manual clicks
+- **✅ DYNAMIC CALLBACK URL**: Server now uses correct domain dynamically
+  - Reads Host header to construct proper return URL
+  - Works across dev/prod environments automatically
+- **✅ ABSOLUTE API URLS**: All fetch requests use absolute URLs
+  - Changed from relative paths (`/api/...`) to absolute (`${window.location.origin}/api/...`)
+  - Eliminates potential proxy/caching issues
+
+### November 21, 2025 - Initial Setup
 - Imported project from GitHub repository
 - Set up Python HTTP server with cache control headers
 - Configured workflow to run on port 5000 with webview output
