@@ -200,6 +200,42 @@ async function handleStatusLookup() {
 let selectedPackage = null;
 
 /**
+ * Auto-verify payment when returning from Paystack checkout
+ */
+async function autoVerifyOnPageLoad() {
+    const lastOrderRef = sessionStorage.getItem('lastOrderReference');
+    
+    if (lastOrderRef) {
+        console.log('[AUTO-VERIFY] Detected return from Paystack for order:', lastOrderRef);
+        sessionStorage.removeItem('lastOrderReference'); // Clear it so we don't re-verify
+        
+        // Small delay to ensure Paystack has updated their backend
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        
+        console.log('[AUTO-VERIFY] Starting automatic verification...');
+        // Verify payment
+        try {
+            const response = await fetch('/api/verify-payment', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ reference: lastOrderRef })
+            });
+            
+            const result = await response.json();
+            
+            if (result.success) {
+                console.log('[AUTO-VERIFY] ✓ Payment verified automatically!');
+                showSuccessScreen(lastOrderRef, 'MTN Package');
+            } else {
+                console.log('[AUTO-VERIFY] Payment not confirmed yet, user can verify manually');
+            }
+        } catch (error) {
+            console.log('[AUTO-VERIFY] Error during auto-verification:', error);
+        }
+    }
+}
+
+/**
  * Renders the package catalog dynamically.
  */
 async function renderCatalog() {
@@ -446,33 +482,15 @@ async function proceedToPaystack(reference, email, amount) {
         console.log('[PAYSTACK] Response data:', data);
         
         if (data.success && data.authorization_url) {
-            console.log('[PAYSTACK] ✓ Payment initialized. Opening checkout in new tab...');
+            console.log('[PAYSTACK] ✓ Payment initialized. Redirecting to Paystack checkout...');
             
-            // Create and click a link for mobile compatibility (bypasses popup blockers)
-            const paymentLink = document.createElement('a');
-            paymentLink.href = data.authorization_url;
-            paymentLink.target = '_blank';
-            paymentLink.rel = 'noopener noreferrer';
-            document.body.appendChild(paymentLink);
-            paymentLink.click();
-            document.body.removeChild(paymentLink);
+            // Store order reference in sessionStorage so we can retrieve it after redirect
+            sessionStorage.setItem('lastOrderReference', reference);
             
-            alert('Payment window opened in a new tab. Complete your payment there, then return here.');
-            
-            // START AUTOMATIC POLLING - Check payment status every 2 seconds (max 2 minutes)
-            console.log('[PAYSTACK] Starting automatic payment verification...');
-            autoVerifyAttempts = 0;
-            autoVerifyIntervalId = setInterval(() => {
-                autoVerifyAttempts++;
-                if (autoVerifyAttempts > MAX_VERIFY_ATTEMPTS) {
-                    console.log('[AUTO-VERIFY] Maximum polling attempts reached. Stopping...');
-                    clearInterval(autoVerifyIntervalId);
-                    autoVerifyIntervalId = null;
-                    alert('Payment verification timeout.\n\nIf you have completed payment, click "Verify Manually (If Needed)" button to confirm.');
-                    return;
-                }
-                autoVerifyPayment(reference);
-            }, 2000); // Poll every 2 seconds
+            // FULL PAGE REDIRECT - More mobile-friendly than new tab
+            // User will be redirected to Paystack, complete payment, then automatically return
+            console.log('[PAYSTACK] Redirecting to:', data.authorization_url);
+            window.location.href = data.authorization_url;
             
         } else {
             console.error('[PAYSTACK] Initialization failed:', data.error);
