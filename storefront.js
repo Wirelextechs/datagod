@@ -403,6 +403,9 @@ function showWaitingScreenWithPayment(shortId, packageName, email, amount) {
     }
 }
 
+// Global variable to store auto-polling interval
+let autoVerifyIntervalId = null;
+
 /**
  * Opens Paystack checkout in a NEW BROWSER TAB (avoids iframe blocking)
  */
@@ -447,7 +450,14 @@ async function proceedToPaystack(reference, email, amount) {
             paymentLink.click();
             document.body.removeChild(paymentLink);
             
-            alert('Payment window opened in a new tab. Complete your payment there, then return here and click "I Have Paid - Verify Now".');
+            alert('Payment window opened in a new tab. Complete your payment there, then return here.');
+            
+            // START AUTOMATIC POLLING - Check payment status every 2 seconds
+            console.log('[PAYSTACK] Starting automatic payment verification...');
+            autoVerifyIntervalId = setInterval(() => {
+                autoVerifyPayment(reference);
+            }, 2000); // Poll every 2 seconds
+            
         } else {
             console.error('[PAYSTACK] Initialization failed:', data.error);
             alert('Failed to initialize payment: ' + (data.error || 'Unknown error'));
@@ -461,7 +471,50 @@ async function proceedToPaystack(reference, email, amount) {
 }
 
 /**
- * Shows waiting screen with manual verification button
+ * Automatically verify payment by polling the backend
+ */
+async function autoVerifyPayment(shortId) {
+    try {
+        console.log('[AUTO-VERIFY] Checking payment status for:', shortId);
+        
+        const response = await fetch('/api/verify-payment', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ reference: shortId })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            console.log('[AUTO-VERIFY] ✓ Payment verified automatically!');
+            
+            // Stop polling
+            if (autoVerifyIntervalId) {
+                clearInterval(autoVerifyIntervalId);
+                autoVerifyIntervalId = null;
+            }
+            
+            // Update UI to show success
+            const verifyBtn = document.getElementById('verify-payment-btn');
+            if (verifyBtn) {
+                verifyBtn.textContent = '✓ Payment Verified!';
+                verifyBtn.disabled = true;
+                verifyBtn.style.backgroundColor = '#28a745';
+            }
+            
+            // Show success screen
+            showSuccessScreen(shortId, document.querySelector('[data-package-name]')?.getAttribute('data-package-name') || 'MTN Package');
+        } else {
+            console.log('[AUTO-VERIFY] Payment not yet confirmed, retrying...');
+        }
+    } catch (error) {
+        console.log('[AUTO-VERIFY] Polling error (will retry):', error.message);
+        // Silently continue polling on error
+    }
+}
+
+/**
+ * Shows waiting screen with automatic verification indicator
  */
 function showWaitingScreen(shortId, packageName) {
     console.log('[WAITING] Showing waiting screen for order:', shortId);
@@ -475,30 +528,38 @@ function showWaitingScreen(shortId, packageName) {
     if (mainContent) {
         mainContent.innerHTML = `
             <div class="waiting-screen" style="z-index: 9999; position: relative; background: white; padding: 30px; text-align: center; max-width: 500px; margin: 40px auto; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
-                <div style="font-size: 3em; margin-bottom: 20px;">⏳</div>
-                <h2 style="color: #007bff; margin-bottom: 15px;">Payment Processing</h2>
+                <div style="font-size: 3em; margin-bottom: 20px; animation: spin 2s linear infinite;" id="spinner">🔄</div>
+                <h2 style="color: #007bff; margin-bottom: 15px;">Verifying Payment...</h2>
                 <p style="margin-bottom: 10px;">Your order has been created with tracking ID:</p>
                 <div style="background: #f0f8ff; padding: 15px; border-radius: 8px; margin: 20px 0;">
                     <strong style="font-size: 2.5em; color: #007bff;">${shortId}</strong>
                 </div>
                 <p style="color: #666; margin-bottom: 25px;">
-                    If you completed your payment, click the button below to confirm and verify your payment with Paystack.
+                    Please wait while we verify your payment automatically. This usually takes a few seconds...
                 </p>
+                <div style="background: #e8f4f8; border-left: 4px solid #17a2b8; padding: 12px; margin: 20px 0; text-align: left;">
+                    <p style="margin: 0; color: #495057; font-size: 0.9em;">
+                        ℹ️ <strong>If payment verification is taking too long:</strong> You can manually click the button below to verify.
+                    </p>
+                </div>
                 <button 
                     id="verify-payment-btn" 
                     onclick="verifyManualPayment('${shortId}', '${packageName}')"
-                    style="background-color: #28a745; color: white; padding: 15px 40px; border: none; border-radius: 5px; font-size: 1.1em; cursor: pointer; font-weight: bold; box-shadow: 0 2px 4px rgba(0,0,0,0.2);">
-                    ✓ I Have Paid - Verify Now
+                    style="background-color: #28a745; color: white; padding: 12px 30px; border: none; border-radius: 5px; font-size: 0.95em; cursor: pointer; font-weight: bold;">
+                    ✓ Verify Manually (If Needed)
                 </button>
-                <p style="color: #999; margin-top: 20px; font-size: 0.9em;">
-                    Note: Verification happens automatically via webhook, but you can use this button if needed.
-                </p>
                 <button 
                     onclick="location.reload()" 
                     style="background-color: #6c757d; color: white; padding: 10px 20px; border: none; border-radius: 5px; margin-top: 15px; cursor: pointer;">
                     Cancel & Start Over
                 </button>
             </div>
+            <style>
+                @keyframes spin {
+                    from { transform: rotate(0deg); }
+                    to { transform: rotate(360deg); }
+                }
+            </style>
         `;
         window.scrollTo(0, 0);
     }
