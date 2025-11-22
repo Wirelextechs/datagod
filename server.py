@@ -45,6 +45,10 @@ class NoCacheHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
     def do_POST(self):
         # Parse URL
         parsed_path = urlparse(self.path)
+        client_ip = self.client_address[0]
+        user_agent = self.headers.get('User-Agent', 'Unknown')
+        print(f'[REQUEST] POST {parsed_path.path} from {client_ip}')
+        print(f'[REQUEST] User-Agent: {user_agent[:60]}...')
         
         # Paystack webhook endpoint
         if parsed_path.path == '/api/webhook/paystack':
@@ -56,6 +60,7 @@ class NoCacheHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
         elif parsed_path.path == '/api/initialize-payment':
             self.handle_initialize_payment()
         else:
+            print(f'[REQUEST] ERROR: 404 - Path not recognized: {parsed_path.path}')
             self.send_response(404)
             self.end_headers()
 

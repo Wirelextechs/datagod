@@ -427,11 +427,16 @@ async function proceedToPaystack(reference, email, amount) {
         });
         
         console.log('[PAYSTACK] Response status:', response.status, response.statusText);
+        console.log('[PAYSTACK] Response headers:', {
+            'content-type': response.headers.get('content-type'),
+            'content-length': response.headers.get('content-length')
+        });
         
         if (!response.ok) {
             const errorText = await response.text();
             console.error('[PAYSTACK] HTTP error response:', errorText);
-            alert(`Payment initialization failed (${response.status}). Please try again or contact support.`);
+            console.error('[PAYSTACK] Full response object:', response);
+            alert(`Payment initialization failed (Status: ${response.status} ${response.statusText})\n\nRequest URL: /api/initialize-payment\n\nPlease check your internet connection and try again.`);
             return;
         }
         
