@@ -122,7 +122,7 @@ def create_order_in_supabase(short_id, phone, package_data, paystack_reference):
         order_data = {
             'short_id': short_id,
             'customer_phone': phone,
-            'package_gb': float(package_data['data_value_gb']),
+            'package_gb': int(package_data['data_value_gb']),
             'package_price': float(package_data['price_ghs']),
             'package_details': package_data['package_name'],
             'paystack_reference': paystack_reference,
