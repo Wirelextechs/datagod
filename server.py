@@ -282,12 +282,19 @@ class NoCacheHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
                 'Content-Type': 'application/json',
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
             }
+            
+            # Get the correct return URL based on the request
+            host_header = self.headers.get('Host', 'localhost:5000')
+            scheme = 'https' if 'replit' in host_header else 'http'
+            callback_url = f'{scheme}://{host_header}/?payment_ref={reference}'
+            print(f'[INIT] Callback URL: {callback_url}')
+            
             paystack_body = json.dumps({
                 'email': email,
                 'amount': amount,
                 'reference': reference,
                 'currency': 'GHS',
-                'callback_url': f'https://datagod.replit.app/?payment_ref={reference}'
+                'callback_url': callback_url
             }).encode('utf-8')
             
             print(f'[INIT] Sending request to Paystack...')
