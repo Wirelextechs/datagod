@@ -89,10 +89,10 @@ The project uses a Python HTTP server configured to:
 - Send Cache-Control headers to prevent caching issues
 
 ### Deployment Configuration
-- Deployment target: **Autoscale** (dynamic server deployment)
+- Deployment target: **Reserved VM** (always-on server deployment)
 - Run command: `python server.py`
 - Runs full Python backend with API endpoints
-- Automatically scales based on traffic demand
+- Dedicated VM for consistent performance with database operations
 
 ## How to Use
 
