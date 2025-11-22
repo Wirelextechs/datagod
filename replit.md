@@ -89,9 +89,10 @@ The project uses a Python HTTP server configured to:
 - Send Cache-Control headers to prevent caching issues
 
 ### Deployment Configuration
-- Deployment target: **Static** (no server-side rendering)
-- Public directory: `.` (root directory)
-- All files are served as static assets
+- Deployment target: **Autoscale** (dynamic server deployment)
+- Run command: `python server.py`
+- Runs full Python backend with API endpoints
+- Automatically scales based on traffic demand
 
 ## How to Use
 
