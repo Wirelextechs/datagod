@@ -160,10 +160,10 @@ The project uses a Python HTTP server configured to:
 ## Payment Integration
 
 ### Paystack Payment Gateway
-The storefront now uses **Paystack LIVE keys** for real payment processing:
-- **Live Public Key**: pk_live_7e49a5058739c7db12015d0a8ca0c27917110ce0 (in code)
-- **Live Secret Key**: Stored in Replit Secrets (PAYSTACK_SECRET_KEY)
-- **Webhook URL**: `https://workspace-wireextechs.replit.app/api/webhook/paystack`
+The storefront uses **Paystack LIVE keys** for real payment processing:
+- **Live Public Key**: Updated (stored in code via replit.md)
+- **Live Secret Key**: Stored in Replit Secrets (PAYSTACK_SECRET_KEY) - **✅ Updated Nov 22, 2025**
+- **Webhook URL**: `https://datagod.replit.app/api/webhook/paystack`
 - **Webhook Security**: HMAC SHA512 signature verification
 
 ### Payment Flow:
