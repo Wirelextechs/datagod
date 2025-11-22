@@ -192,7 +192,8 @@ let currentOrders = []; // Cached array for filtered orders
  */
 function getSelectedOrderIds() {
     const checkedCheckboxes = document.querySelectorAll('#orders-table-body .order-checkbox:checked');
-    return Array.from(checkedCheckboxes).map(cb => cb.getAttribute('data-order-id'));
+    // Convert string IDs to numbers to match database IDs
+    return Array.from(checkedCheckboxes).map(cb => parseInt(cb.getAttribute('data-order-id'), 10));
 }
 
 /**
@@ -200,7 +201,7 @@ function getSelectedOrderIds() {
  */
 function getSelectedOrderObjects() {
     const selectedIds = getSelectedOrderIds();
-    // Use the cached currentOrders array
+    // Use the cached currentOrders array (IDs are now numbers, will match order.id)
     return currentOrders.filter(order => selectedIds.includes(order.id)); 
 }
 
